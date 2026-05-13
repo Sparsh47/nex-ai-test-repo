@@ -20,9 +20,9 @@ const updateUserSchema = z.object({
   email: z.string().email().optional()
 });
 
-// Logging middleware
+// Logging middleware using Fastify logger
 server.addHook('onRequest', (request, reply, done) => {
-  console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
+  request.log.info(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
   done();
 });
 
