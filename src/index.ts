@@ -1,76 +1,61 @@
-import Fastify from "fastify";
-import { updateUserSchema } from "./schemas/user";
+import Fastify from 'fastify';
+import { UserPatchSchema } from './schemas/user';
 
-const fastify = Fastify({
-  logger: true,
-});
+const server = Fastify({ logger: true });
 
-// Register JWT authentication plugin
-fastify.register(import("fastify-jwt"), {
-  secret: "supersecretkey",
-});
-
-// Mock user data
-let mockUser = {
+// Mock user data store
+const mockUser = {
   id: 1,
-  name: "John Doe",
-  email: "john@example.com",
+  name: 'John Doe',
+  email: 'john@example.com',
+  status: 'active'
 };
 
-// GET /user route with authentication
-fastify.get("/user", async (request, reply) => {
-  // JWT authentication check
-  try {
-    await request.jwtVerify();
-  } catch (err) {
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
-
-  // Log request using Fastify's built-in logger
-  fastify.log.info("GET /user accessed by authenticated user");
-
-  return mockUser;
+// Register JWT authentication
+server.register(require('fastify-jwt'), {
+  secret: 'supersecretkey'
 });
 
-// PATCH /user route with validation and authentication
-fastify.patch("/user", async (request, reply) => {
-  // JWT authentication check
-  try {
-    await request.jwtVerify();
-  } catch (err) {
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
+// Health route
+server.get('/health', async (request, reply) => {
+  server.log.info('Health check requested');
+  return { status: 'OK' };
+});
 
-  // Validate and parse request body
-  const validatedData = updateUserSchema.parse(request.body);
-
-  // Update mock user data
-  mockUser = {
-    ...mockUser,
-    ...validatedData,
-  };
-
-  // Log request with validation details
-  fastify.log.info({
-    message: "User data updated",
-    changes: validatedData,
+// User routes
+server.get('/user', { preValidation: (request, reply, done) => {
+  request.jwtVerify((err) => {
+    if (err) return reply.send(err);
+    done();
   });
-
+}}, async (request, reply) => {
+  server.log.info('User data requested');
   return mockUser;
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
+server.patch('/user', { preValidation: (request, reply, done) => {
+  request.jwtVerify((err) => {
+    if (err) return reply.send(err);
+    done();
+  });
+}, schema: {
+  body: UserPatchSchema.shape
+}}, async (request, reply) => {
+  server.log.info('User data updated');
+  
+  // Apply validated updates
+  const updates = UserPatchSchema.parse(request.body);
+  Object.assign(mockUser, updates);
+  
+  return mockUser;
 });
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    console.log(`Dummy API listening on port 3000`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
+export { server };
 
-start();
+// Start server
+if (require.main === module) {
+  server.listen(3000, '0.0.0.0', (err, address) => {
+    if (err) throw err;
+    server.log.info(`Server listening at ${address}`);
+  });
+}
