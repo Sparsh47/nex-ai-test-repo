@@ -1,70 +1,58 @@
-import Fastify from 'fastify';
+import fastify from 'fastify';
 import fastifyJwt from 'fastify-jwt';
 import { z } from 'zod';
-import { logger } from '@nex-ai/logger';
+import { Logger } from '@nex-ai/logger';
 
-const app = Fastify();
+const server = fastify({ logger: Logger });
 
-// Register JWT plugin
-app.register(fastifyJwt, {
-  secret: 'your-secret-key',
+// JWT authentication plugin
+server.register(fastifyJwt, {
+  secret: 'mock-secret-key',
 });
 
-// Mock user data
-const mockUser = {
-  id: 1,
-  display_name: 'John Doe',
-  bio: 'Software Engineer',
-};
-
-// Zod validation schema for PATCH request
+// Zod validation schema for PATCH /api/user/me
 const updateUserSchema = z.object({
   display_name: z.string().optional(),
   bio: z.string().optional(),
 });
 
 // GET /api/user/me
-app.get('/api/user/me', { preValidation: (request, reply, done) => {
-  if (!request.headers.authorization) {
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
-  done();
-}}, async (request, reply) => {
-  logger.info('GET /api/user/me accessed');
-  return mockUser;
+server.get('/api/user/me', { preValidation: (req, res) => server.jwt.authenticate(req, res) }, (request, reply) => {
+  server.log.info(`GET /api/user/me - Authenticated user: ${request.user}`);
+  return {
+    email: 'user@example.com',
+    username: 'mock_user',
+  };
 });
 
 // PATCH /api/user/me
-app.patch('/api/user/me', {
-  preValidation: (request, reply, done) => {
-    if (!request.headers.authorization) {
-      return reply.status(401).send({ error: 'Unauthorized' });
-    }
-    done();
-  },
+server.patch('/api/user/me', {
+  preValidation: (req, res) => server.jwt.authenticate(req, res),
   schema: {
-    body: {
-      type: 'object',
-      properties: {
-        display_name: { type: 'string' },
-        bio: { type: 'string' },
-      },
-      required: []
-    }
+    body: updateUserSchema,
+  },
+}, (request, reply) => {
+  server.log.info(`PATCH /api/user/me - Updating user: ${JSON.stringify(request.body)}`);
+  return {
+    success: true,
+    updated_fields: request.body,
+  };
+});
+
+// 401 handler for unauthenticated requests
+server.setErrorHandler((error, request, reply) => {
+  if (error.code === 'FST_JWT_MISSING_TOKEN' || error.code === 'FST_JWT_INVALID_TOKEN') {
+    return reply.status(401).send({ error: 'Unauthorized' });
   }
-}, async (request, reply) => {
-  logger.info('PATCH /api/user/me accessed');
-  const { display_name, bio } = updateUserSchema.parse(request.body);
-
-  if (display_name) mockUser.display_name = display_name;
-  if (bio) mockUser.bio = bio;
-
-  return mockUser;
+  return reply.send(error);
 });
 
-// Health check
-app.get('/health', async () => {
-  return { status: 'OK' };
-});
+export default server;
 
-export default app;
+// Start server
+if (!import.meta.url.includes('test')) {
+  server.listen({ port: 3000 }, (err, address) => {
+    if (err) throw err;
+    console.log(`Server listening at ${address}`);
+  });
+}
