@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const UserUpdateSchema = z.object({
+export const UserPatchSchema = z.object({
   display_name: z.string().optional(),
   bio: z.string().optional()
 });
