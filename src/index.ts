@@ -1,30 +1,28 @@
-import express from 'express';
+import fastify from 'fastify';
 import { getUserHandler, updateUserHandler } from './handlers/user';
-import { validate } from '@nex-ai/logger';
 
-const app = express();
+const app = fastify();
 const PORT = 3000;
 
-app.use(express.json());
-
 // Request logging middleware
-app.use((req, res, next) => {
-  console.log(`\n${new Date().toISOString()} - ${req.method} ${req.url}`);
-  next();
+app.addHook('onRequest', (request, reply, done) => {
+  console.log(`\n${new Date().toISOString()} - ${request.method} ${request.url}`);
+  done();
 });
 
 // Auth middleware
-app.use((req, res, next) => {
-  if (req.headers.authorization === 'Bearer mock-token') {
-    next();
+app.addHook('onRequest', (request, reply, done) => {
+  if (request.headers.authorization === 'Bearer mock-token') {
+    done();
   } else {
-    res.status(401).json({ error: 'Unauthorized' });
+    reply.status(401).send({ error: 'Unauthorized' });
   }
 });
 
 app.get('/api/user/me', getUserHandler);
 app.patch('/api/user/me', updateUserHandler);
 
-app.listen(PORT, () => {
+app.listen({ port: PORT }, (err, address) => {
+  if (err) throw err;
   console.log(`\nServer running on port ${PORT}`);
 });
