@@ -1,32 +1,26 @@
-import { FastifyInstance } from 'fastify';
+import Fastify from 'fastify';
 import userRoutes from './routes/user';
 
-async function buildServer(): Promise<FastifyInstance> {
-  const fastify = await Fastify({
-    logger: {
-      transport: {
-        target: '@nex-ai/logger',
-        options: {
-          level: 'info',
-          name: 'nex-ai-test-repo'
-        }
-      }
-    }
-  });
+const fastify = Fastify({
+  logger: true
+});
 
-  // Register JWT authentication
-  await fastify.register(import('fastify-jwt'), {
-    secret: 'super-secret-key',
-    cookie: {
-      cookieName: 'jwt',
-      signed: false
-    }
-  });
+// Register health route
+fastify.get('/health', async () => {
+  return { status: 'ok' };
+});
 
-  // Register user routes
-  await fastify.register(userRoutes, { prefix: '/api/user' });
+// Register user routes
+fastify.register(userRoutes, { prefix: '/api' });
 
-  return fastify;
-}
+const start = async () => {
+  try {
+    await fastify.listen({ port: 3000 });
+    console.log('Server listening on port 3000');
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
 
-export default buildServer;
+start();
