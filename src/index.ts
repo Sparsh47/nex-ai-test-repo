@@ -1,21 +1,22 @@
 import fastify from 'fastify';
 import fastifyJwt from 'fastify-jwt';
 import { z } from 'zod';
-import { createWriteStream } from 'fs';
-import winston from 'winston';
+import { createLogger, transports, format } from 'winston';
+import fs from 'fs';
 
-const logger = winston.createLogger({
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+
+const logger = createLogger({
   level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.json()
+  ),
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'combined.log' })
+    new transports.Console(),
+    new transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new transports.File({ filename: 'logs/combined.log' })
   ]
-});
-
-const app = fastify();
-
-app.register(fastifyJwt, {
-  secret: 'your-secret-key'
 });
 
 const patchSchema = z.object({
@@ -23,27 +24,41 @@ const patchSchema = z.object({
   bio: z.string().optional()
 });
 
-app.get('/api/user/me', { preValidation: (req, res) => req.user }, (req, res) => {
+const app = fastify({ logger });
+
+app.register(fastifyJwt, {
+  secret: JWT_SECRET
+});
+
+app.get('/api/user/me', async (request, reply) => {
   logger.info('GET /api/user/me accessed');
-  res.send({ user: { id: 1, name: 'Mock User' } });
+  return {
+    id: 1,
+    name: 'Mock User'
+  };
 });
 
-app.patch('/api/user/me', {
-  preValidation: (req, res) => req.user,
-  schema: {
-    body: {
-      type: 'object',
-      properties: {
-        display_name: { type: 'string' },
-        bio: { type: 'string' }
-      },
-      required: []
-    }
-  }
-}, (req, res) => {
+app.patch('/api/user/me', async (request, reply) => {
   logger.info('PATCH /api/user/me accessed');
-  const validated = patchSchema.parse(req.body);
-  res.send({ updated: validated });
+  try {
+    const validated = patchSchema.parse(request.body);
+    return {
+      updated: validated
+    };
+  } catch (error) {
+    logger.error('Validation failed:', error);
+    reply.status(400).send({ error: 'Invalid request body' });
+  }
 });
 
-app.listen(3000, () => logger.info('Server running on port 3000'));
+const start = async () => {
+  try {
+    await app.listen({ port: 3000 });
+    logger.info('Server listening on port 3000');
+  } catch (err) {
+    logger.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+start();
