@@ -1,61 +1,59 @@
 import Fastify from 'fastify';
 import { UserPatchSchema } from './schemas/user';
 
-const server = Fastify({ logger: true });
+const fastify = Fastify({ logger: true });
 
-// Mock user data store
-const mockUser = {
+// Mock user data
+const user = {
   id: 1,
   name: 'John Doe',
   email: 'john@example.com',
-  status: 'active'
+  role: 'user'
 };
 
 // Register JWT authentication
-server.register(require('fastify-jwt'), {
+fastify.register(require('fastify-jwt'), {
   secret: 'supersecretkey'
 });
 
-// Health route
-server.get('/health', async (request, reply) => {
-  server.log.info('Health check requested');
-  return { status: 'OK' };
-});
-
-// User routes
-server.get('/user', { preValidation: (request, reply, done) => {
-  request.jwtVerify((err) => {
-    if (err) return reply.send(err);
+// GET /user - Get user data with auth
+fastify.get('/user', { preValidation: (request, reply, done) => {
+  fastify.log.info('GET /user request received');
+  request.jwtVerify((err, decoded) => {
+    if (err) {
+      reply.status(401).send({ error: 'Unauthorized' });
+      return;
+    }
     done();
   });
-}}, async (request, reply) => {
-  server.log.info('User data requested');
-  return mockUser;
+}, async (request, reply) => {
+  fastify.log.info('Returning user data');
+  return user;
 });
 
-server.patch('/user', { preValidation: (request, reply, done) => {
-  request.jwtVerify((err) => {
-    if (err) return reply.send(err);
+// PATCH /user - Update user data with validation
+fastify.patch('/user', { preValidation: (request, reply, done) => {
+  fastify.log.info('PATCH /user request received');
+  request.jwtVerify((err, decoded) => {
+    if (err) {
+      reply.status(401).send({ error: 'Unauthorized' });
+      return;
+    }
     done();
   });
-}, schema: {
-  body: UserPatchSchema.shape
-}}, async (request, reply) => {
-  server.log.info('User data updated');
+}, async (request, reply) => {
+  const validatedData = UserPatchSchema.parse(request.body);
   
-  // Apply validated updates
-  const updates = UserPatchSchema.parse(request.body);
-  Object.assign(mockUser, updates);
+  // Update mock user data
+  Object.assign(user, validatedData);
   
-  return mockUser;
+  fastify.log.info('User data updated');
+  return user;
 });
 
-export { server };
+// Health check
+fastify.get('/health', async () => {
+  return { status: 'ok' };
+});
 
-// Start server
-if (require.main === module) {
-  server.listen(3000, '0.0.0.0', (err, address) => {
-    if (err) throw err;
-    server.log.info(`Server listening at ${address}`);
-  });
-}
+export default fastify;
