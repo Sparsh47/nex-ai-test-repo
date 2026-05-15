@@ -1,15 +1,15 @@
-import fastify from 'fastify';
-import { userRoutes } from './routes/user';
+import Fastify from 'fastify';
+import userRoutes from './routes/user';
 
-const fastify = fastify();
+const app = Fastify();
 
-await fastify.register(require('@fastify/jwt'), {
-  secret: 'your-secret-key'
-});
+app.register(userRoutes, { prefix: '/api' });
 
-fastify.register(userRoutes);
-
-fastify.listen({ port: 3000 }, (err, address) => {
-  if (err) throw err;
+const PORT = 3000;
+app.listen({ port: PORT }, (err, address) => {
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
   console.log(`Server listening at ${address}`);
 });
