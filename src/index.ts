@@ -1,59 +1,60 @@
-import Fastify from 'fastify';
-import { UserPatchSchema } from './schemas/user';
+import fastify from 'fastify';
+import { userPatchSchema } from './schemas/user';
 
-const fastify = Fastify({ logger: true });
+const server = fastify({ logger: true });
 
 // Mock user data
-const user = {
+const mockUser = {
   id: 1,
   name: 'John Doe',
-  email: 'john@example.com',
-  role: 'user'
+  email: 'john@example.com'
 };
 
-// Register JWT authentication
-fastify.register(require('fastify-jwt'), {
+// Register JWT plugin
+server.register(import('@fastify/jwt'), {
   secret: 'supersecretkey'
 });
 
-// GET /user - Get user data with auth
-fastify.get('/user', { preValidation: (request, reply, done) => {
-  fastify.log.info('GET /user request received');
-  request.jwtVerify((err, decoded) => {
-    if (err) {
-      reply.status(401).send({ error: 'Unauthorized' });
-      return;
+// GET /user route
+server.get('/user', async (request, reply) => {
+  try {
+    await request.jwtVerify();
+    server.log.info('User data requested');
+    return mockUser;
+  } catch (err) {
+    reply.status(401).send({ error: 'Unauthorized' });
+  }
+});
+
+// PATCH /user route
+server.patch('/user', async (request, reply) => {
+  try {
+    await request.jwtVerify();
+    server.log.info('User data update requested');
+    
+    // Validate request body
+    const validatedData = userPatchSchema.parse(request.body);
+    
+    // Update mock user data
+    Object.assign(mockUser, validatedData);
+    
+    return mockUser;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'ZodError') {
+      return reply.status(400).send({ error: 'Validation failed', details: err.errors });
     }
-    done();
-  });
-}, async (request, reply) => {
-  fastify.log.info('Returning user data');
-  return user;
+    reply.status(401).send({ error: 'Unauthorized' });
+  }
 });
 
-// PATCH /user - Update user data with validation
-fastify.patch('/user', { preValidation: (request, reply, done) => {
-  fastify.log.info('PATCH /user request received');
-  request.jwtVerify((err, decoded) => {
-    if (err) {
-      reply.status(401).send({ error: 'Unauthorized' });
-      return;
-    }
-    done();
-  });
-}, async (request, reply) => {
-  const validatedData = UserPatchSchema.parse(request.body);
-  
-  // Update mock user data
-  Object.assign(user, validatedData);
-  
-  fastify.log.info('User data updated');
-  return user;
-});
+const start = async () => {
+  try {
+    await server.listen({ port: 3000 });
+    server.log.info('Server listening on port 3000');
+  } catch (err) {
+    server.log.error(err);
+    process.exit(1);
+  }
+};
 
-// Health check
-fastify.get('/health', async () => {
-  return { status: 'ok' };
-});
-
-export default fastify;
+start();
