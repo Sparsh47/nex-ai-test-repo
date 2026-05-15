@@ -1,25 +1,12 @@
-import Fastify from "fastify";
-import { userRoutes } from "./routes/user";
+import fastify from 'fastify';
+import { userRoutes } from './routes/user';
 
-const fastify = Fastify({
-  logger: true,
+const server = fastify();
+
+server.register(userRoutes);
+
+server.get('/', async () => {
+  return { hello: 'world' };
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
-});
-
-// Register user routes
-userRoutes(fastify);
-
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    console.log(`Dummy API listening on port 3000`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+export { server };
