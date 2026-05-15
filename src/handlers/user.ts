@@ -1,56 +1,33 @@
-import { Request, Response } from 'express';
-import { UserUpdateSchema } from '../schemas/user';
-import { createLogger, format, transports } from 'winston';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
+import { User } from '../schemas/user';
 
-// Winston logger setup
-const logger = createLogger({
-  format: format.combine(
-    format.timestamp(),
-    format.printf(({ timestamp, level, message }) => `${timestamp} [${level.toUpperCase()}] ${message}`)
-  ),
-  transports: [
-    new transports.Console(),
-    new transports.File({ filename: 'error.log', level: 'error' })
-  ]
+const updateUserSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional()
 });
 
-export const getUser = async (req: Request, res: Response) => {
-  try {
-    // Authentication check
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: 'Unauthorized' });
+export const userHandlers = {
+  getUser: async (request: FastifyRequest, reply: FastifyReply) => {
+    request.log.info('GET /api/user/me accessed');
+    return {
+      email: 'user@example.com',
+      username: 'johndoe'
+    };
+  },
+
+  updateUser: async (request: FastifyRequest<{ Body: z.infer<typeof updateUserSchema> }>, reply: FastifyReply) => {
+    try {
+      const validatedData = updateUserSchema.parse(request.body);
+      request.log.info('Received user update request', { data: validatedData });
+
+      return {
+        success: true,
+        updated_fields: Object.keys(validatedData).filter(k => validatedData[k] !== undefined)
+      };
+    } catch (error) {
+      request.log.error('Validation failed for user update', { error });
+      reply.status(400).send({ error: 'Invalid request data' });
     }
-
-    // Mock user data
-    res.json({
-      id: '123',
-      display_name: 'Test User',
-      bio: 'This is a test bio',
-      created_at: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Error fetching user:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const updateUser = async (req: Request, res: Response) => {
-  try {
-    // Authentication check
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Validate request body
-    const validatedData = UserUpdateSchema.parse(req.body);
-
-    // Mock update logic
-    res.json({
-      success: true,
-      updated_data: validatedData
-    });
-  } catch (error) {
-    logger.error('Error updating user:', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
 };
