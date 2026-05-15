@@ -1,11 +1,5 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
-import { User } from '../schemas/user';
-
-const updateUserSchema = z.object({
-  display_name: z.string().optional(),
-  bio: z.string().optional()
-});
+import { UserUpdateSchema } from '../schemas/user';
 
 export const userHandlers = {
   getUser: async (request: FastifyRequest, reply: FastifyReply) => {
@@ -16,9 +10,9 @@ export const userHandlers = {
     };
   },
 
-  updateUser: async (request: FastifyRequest<{ Body: z.infer<typeof updateUserSchema> }>, reply: FastifyReply) => {
+  updateUser: async (request: FastifyRequest<{ Body: z.infer<typeof UserUpdateSchema> }>, reply: FastifyReply) => {
     try {
-      const validatedData = updateUserSchema.parse(request.body);
+      const validatedData = UserUpdateSchema.parse(request.body);
       request.log.info('Received user update request', { data: validatedData });
 
       return {
