@@ -1,4 +1,5 @@
 import Fastify from "fastify";
+import { userRoutes } from "./routes/user";
 
 const fastify = Fastify({
   logger: true,
@@ -8,7 +9,8 @@ fastify.get("/health", async (request, reply) => {
   return { status: "ok", uptime: process.uptime() };
 });
 
-// TODO: Register user routes here once created
+// Register user routes
+await userRoutes(fastify);
 
 const start = async () => {
   try {
