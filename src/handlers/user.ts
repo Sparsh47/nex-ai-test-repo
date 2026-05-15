@@ -1,6 +1,6 @@
 import express from 'express';
 import { UserPatchSchema } from '../schemas/user';
-import logger from '@nex-ai/logger';
+import logger from '../index';
 
 const router = express.Router();
 
