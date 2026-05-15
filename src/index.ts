@@ -1,56 +1,30 @@
-import fastify from 'fastify';
-import fastifyJwt from 'fastify-jwt';
-import { z } from 'zod';
+import express from 'express';
+import { getUserHandler, updateUserHandler } from './handlers/user';
+import { validate } from '@nex-ai/logger';
 
-import { updateUserSchema } from '../schemas/user';
+const app = express();
+const PORT = 3000;
 
-const app = fastify();
+app.use(express.json());
 
-// Mock user data
-const mockUser = {
-  id: '123',
-  display_name: 'Test User',
-  bio: 'Default bio',
-};
-
-// Register JWT plugin
-app.register(fastifyJwt, {
-  secret: 'mock-secret-key',
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`\n${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
 });
 
-// GET /api/user/me
-app.get('/api/user/me', { preValidation: (request, reply, done) => {
-  request.jwtVerify((err, user) => {
-    if (err) return reply.status(401).send({ error: 'Unauthorized' });
-    done();
-  });
-}}, (request, reply) => {
-  app.log.info('GET /api/user/me accessed');
-  reply.send(mockUser);
+// Auth middleware
+app.use((req, res, next) => {
+  if (req.headers.authorization === 'Bearer mock-token') {
+    next();
+  } else {
+    res.status(401).json({ error: 'Unauthorized' });
+  }
 });
 
-// PATCH /api/user/me
-app.patch('/api/user/me', { preValidation: (request, reply, done) => {
-  request.jwtVerify((err, user) => {
-    if (err) return reply.status(401).send({ error: 'Unauthorized' });
-    done();
-  });
-}}, (request, reply) => {
-  app.log.info('PATCH /api/user/me accessed');
-  
-  const { display_name, bio } = updateUserSchema.parse(request.body);
-  
-  // Update mock user data
-  if (display_name) mockUser.display_name = display_name;
-  if (bio) mockUser.bio = bio;
-  
-  reply.send(mockUser);
-});
+app.get('/api/user/me', getUserHandler);
+app.patch('/api/user/me', updateUserHandler);
 
-// Error handler
-app.setErrorHandler((error, request, reply) => {
-  app.log.error('Error occurred:', error);
-  reply.status(500).send({ error: 'Internal server error' });
+app.listen(PORT, () => {
+  console.log(`\nServer running on port ${PORT}`);
 });
-
-export { app };
