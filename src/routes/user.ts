@@ -1,76 +1,21 @@
 import { FastifyPluginAsync } from 'fastify';
-import { FastifyInstance } from 'fastify';
 import { UserUpdateSchema } from '../schemas/user';
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
-import pino from 'pino';
+import { logger } from '@nex-ai/logger';
 
-const logger = pino();
+const userPlugin: FastifyPluginAsync = async (fastify) => {
+  const mockUser = { id: 1, email: 'user@example.com', name: 'John Doe' };
 
-const userRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
-  fastify.get('/api/user/me', {
-    preValidation: (request, reply) => {
-      if (!request.headers.authorization) {
-        reply.code(401).send({ error: 'Unauthorized' });
-      }
-    },
-    schema: {
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            email: { type: 'string' },
-            name: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    logger.info('GET /api/user/me request received');
-    
-    const mockUser = {
-      id: '123',
-      email: 'user@example.com',
-      name: 'John Doe'
-    };
-
+  fastify.get('/api/user/me', { preValidation: fastify.auth }, async (request, reply) => {
+    logger.info('GET /api/user/me requested');
     return mockUser;
   });
 
-  fastify.patch('/api/user/me', {
-    preValidation: (request, reply) => {
-      if (!request.headers.authorization) {
-        reply.code(401).send({ error: 'Unauthorized' });
-      }
-    },
-    schema: {
-      body: UserUpdateSchema,
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            email: { type: 'string' },
-            name: { type: 'string' }
-          }
-        }
-      }
-    }
-  }, async (request: FastifyRequest<{ Body: z.infer<typeof UserUpdateSchema> }>, reply: FastifyReply) => {
-    logger.info('PATCH /api/user/me request received');
-    
-    const mockUser = {
-      id: '123',
-      email: 'user@example.com',
-      name: 'John Doe'
-    };
-
-    const updates = request.body;
-    Object.assign(mockUser, updates);
-
+  fastify.patch('/api/user/me', async (request, reply) => {
+    const updateData = UserUpdateSchema.parse(request.body);
+    logger.info('User update requested with data:', { updateData });
+    Object.assign(mockUser, updateData);
     return mockUser;
   });
 };
 
-export default userRoutes;
+export default userPlugin;
