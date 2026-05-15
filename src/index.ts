@@ -1,9 +1,21 @@
 import express from 'express';
-import logger from '@nex-ai/logger';
+import { createLogger, format, transports } from 'winston';
 import userRouter from './handlers/user';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configure Winston logger
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.errors({ stack: true }),
+    format.splat(),
+    format.json()
+  ),
+  transports: [new transports.Console()]
+});
 
 // Middleware
 app.use(express.json());
