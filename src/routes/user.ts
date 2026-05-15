@@ -1,45 +1,25 @@
-import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { logger } from '@nex-ai/logger';
-import { z } from 'zod';
-import { updateUserSchema } from '../schemas/user';
+import { FastifyInstance } from "fastify";
+import { UserUpdateSchema } from "../schemas/user";
+import { logger } from "@nex-ai/logger";
 
-export default function userRoutes(fastify: FastifyInstance) {
-  // GET /api/user/me
-  fastify.get('/user/me', { preValidation: (request, reply, done) => {
-      if (request.user) {
-        done();
-      } else {
-        reply.status(401).send({ error: 'Unauthorized' });
-        done(new Error('Unauthorized'));
-      }
-    }},
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      logger.info('GET /user/me request received');
-      const mockUser = { id: 1, email: 'user@example.com', name: 'John Doe' };
-      return mockUser;
-    }
-  );
+export async function registerUserRoutes(fastify: FastifyInstance) {
+  fastify.get("/api/user/me", { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    logger.info({ message: 'User info requested', userId: request.user.id });
+    return {
+      id: request.user.id,
+      email: request.user.email,
+      name: request.user.name
+    };
+  });
 
-  // PATCH /api/user/me
-  fastify.patch('/user/me', {
-    schema: {
-      body: updateUserSchema
-    },
-    preValidation: (request, reply, done) => {
-      if (request.user) {
-        done();
-      } else {
-        reply.status(401).send({ error: 'Unauthorized' });
-        done(new Error('Unauthorized'));
-      }
-    }
-  },
-    async (request: FastifyRequest<{ Body: z.infer<typeof updateUserSchema> }>, reply: FastifyReply) => {
-      logger.info('PATCH /user/me request received with body:', request.body);
-      const mockUser = { id: 1, email: 'user@example.com', name: 'John Doe' };
-      const updates = request.body;
-      Object.assign(mockUser, updates);
-      return mockUser;
-    }
-  );
+  fastify.patch("/api/user/me", { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    const updateData = UserUpdateSchema.parse(request.body);
+    logger.info({ message: 'User update requested', userId: request.user.id, updates: updateData });
+
+    // In production, this would update a real user record
+    return {
+      ...request.user,
+      ...updateData
+    };
+  });
 }
