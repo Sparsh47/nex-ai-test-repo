@@ -1,12 +1,19 @@
-import fastify from 'fastify';
-import { userRoutes } from './routes/user';
+import Fastify from 'fastify';
+import { logger } from '@nex-ai/logger';
+import userRoutes from './routes/user';
 
-const server = fastify();
+const fastify = Fastify({ logger });
 
-server.register(userRoutes);
+fastify.register(userRoutes);
 
-server.get('/', async () => {
-  return { hello: 'world' };
+fastify.get('/api/health', async () => {
+  return { status: 'ok' };
 });
 
-export { server };
+try {
+  await fastify.listen({ port: 3000 });
+  fastify.log.info(`Server listening on http://localhost:3000`);
+} catch (err) {
+  fastify.log.error(err);
+  process.exit(1);
+}
