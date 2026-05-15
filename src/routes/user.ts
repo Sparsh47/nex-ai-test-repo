@@ -1,27 +1,30 @@
-import fastify from 'fastify';
+import { FastifyInstance } from 'fastify';
+import { userUpdateSchema } from '../schemas/user';
+import { logger } from '@nex-ai/logger';
 
-export function userRoutes(fastify: fastify.FastifyInstance): void {
-  fastify.get('/api/user/me', { preValidation: fastify.auth([verifyJWT]) }, async (request, reply) => {
-    console.log('GET /api/user/me - Authenticated user:', request.user);
+export async function userRoutes(fastify: FastifyInstance) {
+  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request, reply) => {
+    logger.info('GET /api/user/me requested', { userId: 'mock-123' });
     return {
-      id: '123',
+      id: 'mock-123',
       email: 'user@example.com',
-      name: 'Test User'
+      name: 'Mock User'
     };
   });
 
-  fastify.patch('/api/user/me', async (request, reply) => {
-    try {
-      const updates = UserUpdateSchema.parse(request.body);
-      console.log('PATCH /api/user/me - Update request:', updates);
-      return {
-        id: '123',
-        email: 'user@example.com',
-        name: 'Test User',
-        ...updates
-      };
-    } catch (error) {
-      reply.status(400).send({ error: 'Invalid request body' });
+  fastify.patch('/api/user/me', {
+    preValidation: [fastify.authenticate],
+    schema: {
+      body: userUpdateSchema.shape
     }
+  }, async (request, reply) => {
+    const updates = userUpdateSchema.parse(request.body);
+    logger.info('User update requested', { updates });
+    return {
+      id: 'mock-123',
+      email: 'user@example.com',
+      name: 'Mock User',
+      ...updates
+    };
   });
 }
