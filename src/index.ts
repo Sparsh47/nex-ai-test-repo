@@ -1,11 +1,18 @@
-import express from 'express';
-import { userRouter } from './handlers/user';
+import Fastify from 'fastify';
+import routes from './routes/user';
+import fastifyJwt from 'fastify-jwt';
 
-const app = express();
-app.use(express.json());
-app.use('/api/user', userRouter);
+const server = Fastify({ logger: true });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+server.register(fastifyJwt, {
+  secret: 'test-secret',
 });
+
+server.addHook('onRequest', (request, reply, done) => {
+  server.log.info(`Request: ${request.method} ${request.url}`);
+  done();
+});
+
+server.register(routes, { prefix: '/api' });
+
+export default server;
