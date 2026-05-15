@@ -1,6 +1,20 @@
-import express from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import { UserUpdateSchema } from '../schemas/user';
-import { logger } from '@nex-ai/logger';
+import { createLogger, format, transports } from 'winston';
+
+// Configure winston logger
+const logger = createLogger({
+  level: 'info',
+  format: format.combine(
+    format.timestamp(),
+    format.printf(({ timestamp, level, message }) => {
+      return `\n[${timestamp}] ${level.toUpperCase()}: ${message}`;
+    })
+  ),
+  transports: [
+    new transports.Console()
+  ]
+});
 
 // Mock user data store
 const mockUser = {
@@ -10,32 +24,39 @@ const mockUser = {
   email: 'user@example.com'
 };
 
-export const getUserHandler = async (req: express.Request, res: express.Response) => {
+export const getUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   try {
     logger.info('Fetching user data');
-    res.json(mockUser);
+    reply.send(mockUser);
   } catch (error) {
-    logger.error('Error fetching user', error);
-    res.status(500).json({ error: 'Internal server error' });
+    logger.error(`Error fetching user: ${error}`);
+    reply.status(500).send({ error: 'Internal server error' });
   }
 };
 
-export const updateUserHandler = async (req: express.Request, res: express.Response) => {
+export const updateUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    const validatedData = UserUpdateSchema.parse(req.body);
+    // Validate request body with Zod
+    const validatedData = UserUpdateSchema.parse(request.body);
     
     // Apply updates to mock user
     Object.assign(mockUser, validatedData);
     
     logger.info('User data updated', { user: mockUser });
-    res.json(mockUser);
+    reply.send(mockUser);
   } catch (error) {
     if (error instanceof Error) {
-      logger.error('Validation failed', error);
-      return res.status(400).json({ error: error.message });
+      // Handle Zod validation errors
+      if (error.name === 'ZodError') {
+        logger.warn('Validation failed', error);
+        return reply.status(400).send({
+          error: 'Validation failed',
+          details: error.issues
+        });
+      }
+      
+      logger.error('Error updating user', error);
+      return reply.status(500).send({ error: 'Internal server error' });
     }
-    
-    logger.error('Error updating user', error);
-    res.status(500).json({ error: 'Internal server error' });
   }
 };
