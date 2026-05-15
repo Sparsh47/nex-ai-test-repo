@@ -5,15 +5,17 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node src/index.ts"
+    "dev": "fastify dev src/index.ts --watch",
+    "start": "fastify start src/index.ts"
   },
   "dependencies": {
-    "@nex-ai/logger": "^1.0.0",
-    "fastify": "^4.11.0",
-    "fastify-jwt": "^2.1.0",
-    "zod": "^3.21.4"
+    "fastify": "^4.18.0",
+    "fastify-jwt": "^3.0.1",
+    "zod": "^3.21.4",
+    "@nex-ai/logger": "^1.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.0.3"
+    "@types/node": "^20.8.4",
+    "typescript": "^5.2.2"
   }
 }
