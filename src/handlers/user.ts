@@ -1,49 +1,36 @@
-import express from 'express';
-import { UserUpdateSchema } from '../schemas/user';
-import logger from '@nex-ai/logger';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { verify } from 'fastify-jwt';
+import { z } from 'zod';
+import { logger } from '@nex-ai/logger';
 
-export const userRouter = express.Router();
+const mockUser = {
+  id: '123',
+  display_name: 'Test User',
+  bio: 'Default bio',
+};
 
-// GET /api/user/me
-userRouter.get('/me', (req, res) => {
-  logger.info('Fetching user profile');
-  
-  // Mock authentication check
-  if (!req.headers.authorization) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
-  res.json({
-    id: '123',
-    display_name: 'Test User',
-    bio: 'Default bio',
-    created_at: new Date()
-  });
+const updateSchema = z.object({
+  display_name: z.string().min(2).max(30).optional(),
+  bio: z.string().max(160).optional(),
 });
 
-// PATCH /api/user/me
-userRouter.patch('/me', (req, res) => {
-  logger.info('Updating user profile');
-  
+export const getMe = async (request: FastifyRequest, reply: FastifyReply) => {
+  logger.info('GET /api/user/me requested', { userId: mockUser.id });
+  return mockUser;
+};
+
+export const updateMe = async (request: FastifyRequest, reply: FastifyReply) => {
   try {
-    const updateData = UserUpdateSchema.parse(req.body);
-    
-    // Mock authentication check
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    const user = await verify(request, reply);
+    const { display_name, bio } = updateSchema.parse(request.body);
 
-    // In real app, would update database
-    const updatedUser = {
-      id: '123',
-      display_name: updateData.display_name || 'Test User',
-      bio: updateData.bio || 'Default bio',
-      created_at: new Date()
-    };
+    if (display_name) mockUser.display_name = display_name;
+    if (bio) mockUser.bio = bio;
 
-    res.json(updatedUser);
+    logger.info('User updated', { userId: mockUser.id, updates: { display_name, bio } });
+    return mockUser;
   } catch (error) {
-    logger.error('Validation failed', error);
-    res.status(400).json({ error: 'Invalid request data' });
+    logger.error('Update failed', { error });
+    throw error;
   }
-});
+};
