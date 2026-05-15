@@ -1,23 +1,49 @@
-import Fastify from "fastify";
+import fastify from 'fastify';
+import fastifyJwt from 'fastify-jwt';
+import { z } from 'zod';
+import { createWriteStream } from 'fs';
+import winston from 'winston';
 
-const fastify = Fastify({
-  logger: true,
+const logger = winston.createLogger({
+  level: 'info',
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
+const app = fastify();
+
+app.register(fastifyJwt, {
+  secret: 'your-secret-key'
 });
 
-// TODO: Register user routes here once created
+const patchSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional()
+});
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    console.log(`Dummy API listening on port 3000`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
+app.get('/api/user/me', { preValidation: (req, res) => req.user }, (req, res) => {
+  logger.info('GET /api/user/me accessed');
+  res.send({ user: { id: 1, name: 'Mock User' } });
+});
+
+app.patch('/api/user/me', {
+  preValidation: (req, res) => req.user,
+  schema: {
+    body: {
+      type: 'object',
+      properties: {
+        display_name: { type: 'string' },
+        bio: { type: 'string' }
+      },
+      required: []
+    }
   }
-};
+}, (req, res) => {
+  logger.info('PATCH /api/user/me accessed');
+  const validated = patchSchema.parse(req.body);
+  res.send({ updated: validated });
+});
 
-start();
+app.listen(3000, () => logger.info('Server running on port 3000'));
