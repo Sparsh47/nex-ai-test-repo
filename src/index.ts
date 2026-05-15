@@ -1,16 +1,21 @@
-import Fastify from "fastify";
-import { userRoutes } from "./routes/user";
+import fastify from 'fastify';
+import userRoutes from './routes/user';
 
-const fastify = Fastify({
+const fastify = fastify({
   logger: true,
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
+// Register JWT authentication
+await fastify.register(require('fastify-jwt'), {
+  secret: 'your-secret-key',
 });
 
 // Register user routes
-await userRoutes(fastify);
+userRoutes(fastify);
+
+fastify.get('/health', async (request, reply) => {
+  return { status: 'ok', uptime: process.uptime() };
+});
 
 const start = async () => {
   try {
