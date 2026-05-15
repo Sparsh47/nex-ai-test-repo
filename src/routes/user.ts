@@ -1,30 +1,32 @@
-import { FastifyInstance, FastifyRequest } from 'fastify';
-import { UpdateUserSchema } from '../schemas/user';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { UserUpdateSchema } from '../schemas/user';
 import { logger } from '@nex-ai/logger';
 
-export async function userRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request: FastifyRequest) => {
-    logger.info('GET /api/user/me - User requested their profile');
-    return {
-      id: '123',
-      email: 'user@example.com',
-      name: 'John Doe'
-    };
+export default function userRoutes(fastify: FastifyInstance) {
+  const mockUser = { id: 1, email: 'user@example.com', name: 'John Doe' };
+
+  fastify.get('/api/user/me', { preValidation: (request, reply, done) => {
+    // Simulate JWT auth validation
+    if (!request.headers['authorization']) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+    done();
+  }}, (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('GET /api/user/me');
+    return { user: mockUser };
   });
 
-  fastify.patch('/api/user/me', {
-    schema: {
-      body: UpdateUserSchema.shape
-    },
-    preValidation: [fastify.authenticate]
-  }, async (request: FastifyRequest<{ Body: z.infer<typeof UpdateUserSchema> }>) => {
-    const updates = request.body;
-    logger.info('PATCH /api/user/me - User updated their profile', { updates });
-    return {
-      id: '123',
-      email: 'user@example.com',
-      name: 'John Doe',
-      ...updates
-    };
+  fastify.patch('/api/user/me', { preValidation: (request, reply, done) => {
+    if (!request.headers['authorization']) {
+      return reply.status(401).send({ error: 'Unauthorized' });
+    }
+    done();
+  }, schema: {
+    body: UserUpdateSchema
+  }}, (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('PATCH /api/user/me', { body: request.body });
+    const updates = UserUpdateSchema.parse(request.body);
+    Object.assign(mockUser, updates);
+    return { user: mockUser };
   });
 }
