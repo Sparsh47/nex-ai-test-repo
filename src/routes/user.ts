@@ -1,30 +1,33 @@
 import { FastifyInstance } from 'fastify';
-import { userUpdateSchema } from '../schemas/user';
+import { updateUserSchema } from './schemas/user';
 import { logger } from '@nex-ai/logger';
 
+const mockUser = {
+  id: '123',
+  email: 'user@example.com',
+  name: 'John Doe',
+};
+
 export async function userRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request, reply) => {
-    logger.info('GET /api/user/me requested', { userId: 'mock-123' });
-    return {
-      id: 'mock-123',
-      email: 'user@example.com',
-      name: 'Mock User'
-    };
+  fastify.get('/api/user/me', {
+    preValidation: [fastify.authenticate],
+    handler: async (request, reply) => {
+      logger.info(`User ${request.user.id} accessed /api/user/me`);
+      return { user: mockUser };
+    }
   });
 
   fastify.patch('/api/user/me', {
     preValidation: [fastify.authenticate],
     schema: {
-      body: userUpdateSchema.shape
+      body: updateUserSchema
+    },
+    handler: async (request, reply) => {
+      const { name, email } = updateUserSchema.parse(request.body);
+      logger.info(`User ${request.user.id} updated profile`, { name, email });
+      mockUser.name = name || mockUser.name;
+      mockUser.email = email || mockUser.email;
+      return { user: mockUser };
     }
-  }, async (request, reply) => {
-    const updates = userUpdateSchema.parse(request.body);
-    logger.info('User update requested', { updates });
-    return {
-      id: 'mock-123',
-      email: 'user@example.com',
-      name: 'Mock User',
-      ...updates
-    };
   });
 }
