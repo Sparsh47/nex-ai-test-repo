@@ -1,1 +1,1 @@
-{"name":"nex-ai-test-repo","version":"1.0.0","dependencies":{"fastify":"^4.11.0","fastify-jwt":"^2.1.0","zod":"^3.21.4","@nex-ai/logger":"^1.0.0"},"scripts":{"start":"fastify start src/index.ts"}}
+{"name":"nex-ai-test-repo","version":"1.0.0","dependencies":{"fastify":"^4.11.0","fastify-jwt":"^2.1.0","zod":"^3.21.4","winston":"^3.11.0"},"scripts":{"start":"fastify start src/index.ts"}}
