@@ -1,23 +1,58 @@
-import Fastify from "fastify";
+import fastify from 'fastify';
+import fastifyJwt from 'fastify-jwt';
+import { z } from 'zod';
+import { Logger } from '@nex-ai/logger';
 
-const fastify = Fastify({
-  logger: true,
+const server = fastify({ logger: Logger });
+
+// JWT authentication plugin
+server.register(fastifyJwt, {
+  secret: 'mock-secret-key',
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
+// Zod validation schema for PATCH /api/user/me
+const updateUserSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional(),
 });
 
-// TODO: Register user routes here once created
+// GET /api/user/me
+server.get('/api/user/me', { preValidation: (req, res) => server.jwt.authenticate(req, res) }, (request, reply) => {
+  server.log.info(`GET /api/user/me - Authenticated user: ${request.user}`);
+  return {
+    email: 'user@example.com',
+    username: 'mock_user',
+  };
+});
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    console.log(`Dummy API listening on port 3000`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
+// PATCH /api/user/me
+server.patch('/api/user/me', {
+  preValidation: (req, res) => server.jwt.authenticate(req, res),
+  schema: {
+    body: updateUserSchema,
+  },
+}, (request, reply) => {
+  server.log.info(`PATCH /api/user/me - Updating user: ${JSON.stringify(request.body)}`);
+  return {
+    success: true,
+    updated_fields: request.body,
+  };
+});
+
+// 401 handler for unauthenticated requests
+server.setErrorHandler((error, request, reply) => {
+  if (error.code === 'FST_JWT_MISSING_TOKEN' || error.code === 'FST_JWT_INVALID_TOKEN') {
+    return reply.status(401).send({ error: 'Unauthorized' });
   }
-};
+  return reply.send(error);
+});
 
-start();
+export default server;
+
+// Start server
+if (!import.meta.url.includes('test')) {
+  server.listen({ port: 3000 }, (err, address) => {
+    if (err) throw err;
+    console.log(`Server listening at ${address}`);
+  });
+}
