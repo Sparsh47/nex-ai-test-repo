@@ -1,9 +1,26 @@
 import { FastifyInstance } from 'fastify';
-import userHandler from '../handlers/user';
+import { getMe, updateMe } from '../handlers/user';
+import { UpdateUserSchema } from '../schemas/user';
 
-async function routes(fastify: FastifyInstance) {
-  fastify.get('/api/user/me', userHandler.getMe);
-  fastify.patch('/api/user/me', userHandler.updateMe);
+async function userRoutes(fastify: FastifyInstance) {
+  fastify.get('/user/me', {
+    preValidation: (request, reply, done) => {
+      request.jwtVerify();
+      done();
+    },
+    handler: getMe
+  });
+
+  fastify.patch('/user/me', {
+    preValidation: (request, reply, done) => {
+      request.jwtVerify();
+      done();
+    },
+    schema: {
+      body: UpdateUserSchema
+    },
+    handler: updateMe
+  });
 }
 
-export default routes;
+export default userRoutes;
