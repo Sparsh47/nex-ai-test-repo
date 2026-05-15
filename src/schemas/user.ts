@@ -1,10 +1,6 @@
 import { z } from 'zod';
 
-export const UserUpdateSchema = z.object({
+export const UpdateUserSchema = z.object({
   name: z.string().optional(),
-  email: z.string().email().optional(),
-  // Add other updatable fields as needed
+  email: z.string().email().optional()
 });
-type UserUpdate = z.infer<typeof UserUpdateSchema>;
-
-export type { UserUpdate };
