@@ -1,62 +1,46 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { UserUpdateSchema } from '../schemas/user';
-import { createLogger, format, transports } from 'winston';
+import express from 'express';
+import { UserPatchSchema } from '../schemas/user';
+import logger from '@nex-ai/logger';
 
-// Configure winston logger
-const logger = createLogger({
-  level: 'info',
-  format: format.combine(
-    format.timestamp(),
-    format.printf(({ timestamp, level, message }) => {
-      return `\n[${timestamp}] ${level.toUpperCase()}: ${message}`;
-    })
-  ),
-  transports: [
-    new transports.Console()
-  ]
-});
+const router = express.Router();
 
-// Mock user data store
-const mockUser = {
+// Mock user data
+let currentUser = {
   id: '123',
   display_name: 'Test User',
   bio: 'Default bio',
   email: 'user@example.com'
 };
 
-export const getUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    logger.info('Fetching user data');
-    reply.send(mockUser);
-  } catch (error) {
-    logger.error(`Error fetching user: ${error}`);
-    reply.status(500).send({ error: 'Internal server error' });
+// GET /api/user/me
+router.get('/me', (req, res) => {
+  logger.info('GET /api/user/me requested');
+  
+  if (!req.user) {
+    logger.warn('Unauthenticated access attempt to /api/user/me');
+    return res.status(401).json({ error: 'Authentication required' });
   }
-};
 
-export const updateUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    // Validate request body with Zod
-    const validatedData = UserUpdateSchema.parse(request.body);
-    
-    // Apply updates to mock user
-    Object.assign(mockUser, validatedData);
-    
-    logger.info('User data updated', { user: mockUser });
-    reply.send(mockUser);
-  } catch (error) {
-    if (error instanceof Error) {
-      // Handle Zod validation errors
-      if (error.name === 'ZodError') {
-        logger.warn('Validation failed', error);
-        return reply.status(400).send({
-          error: 'Validation failed',
-          details: error.issues
-        });
-      }
-      
-      logger.error('Error updating user', error);
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
+  res.json(currentUser);
+});
+
+// PATCH /api/user/me
+router.patch('/me', (req, res) => {
+  logger.info('PATCH /api/user/me requested');
+  
+  if (!req.user) {
+    logger.warn('Unauthenticated access attempt to /api/user/me');
+    return res.status(401).json({ error: 'Authentication required' });
   }
-};
+
+  try {
+    const validatedData = UserPatchSchema.parse(req.body);
+    Object.assign(currentUser, validatedData);
+    res.json(currentUser);
+  } catch (error) {
+    logger.error('Validation failed for PATCH /api/user/me', error);
+    res.status(400).json({ error: 'Invalid request data' });
+  }
+});
+
+export default router;
