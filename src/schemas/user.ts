@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-export const UpdateUserSchema = z.object({
-  name: z.string().min(2).max(100).optional(),
+export const updateUserSchema = z.object({
+  name: z.string().optional(),
   email: z.string().email().optional(),
-  isActive: z.boolean().optional()
+  role: z.enum(['user', 'admin']).optional()
 });
