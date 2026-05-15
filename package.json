@@ -1,21 +1,13 @@
 {
   "name": "nex-ai-test-repo",
   "version": "1.0.0",
-  "description": "",
-  "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "dev": "fastify dev src/index.ts --watch",
-    "start": "fastify start src/index.ts"
-  },
   "dependencies": {
-    "fastify": "^4.18.0",
-    "fastify-jwt": "^3.0.1",
-    "zod": "^3.21.4",
-    "@nex-ai/logger": "^1.0.0"
+    "@fastify/jwt": "^4.1.0",
+    "@nex-ai/logger": "^1.0.0",
+    "fastify": "^4.11.0",
+    "zod": "^3.20.3"
   },
-  "devDependencies": {
-    "@types/node": "^20.8.4",
-    "typescript": "^5.2.2"
+  "scripts": {
+    "start": "fastify start index.ts"
   }
 }
