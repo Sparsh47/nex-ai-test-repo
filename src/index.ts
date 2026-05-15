@@ -1,19 +1,20 @@
 import Fastify from 'fastify';
-import { logger } from '@nex-ai/logger';
+import fastifyJwt from 'fastify-jwt';
 import userRoutes from './routes/user';
 
-const fastify = Fastify({ logger });
+const fastify = Fastify();
 
-fastify.register(userRoutes);
+fastify.register(fastifyJwt, {
+  secret: 'your-secret-key',
+});
 
 fastify.get('/api/health', async () => {
   return { status: 'ok' };
 });
 
-try {
-  await fastify.listen({ port: 3000 });
-  fastify.log.info(`Server listening on http://localhost:3000`);
-} catch (err) {
-  fastify.log.error(err);
-  process.exit(1);
-}
+fastify.register(userRoutes);
+
+fastify.listen({ port: 3000 }, (err, address) => {
+  if (err) throw err;
+  console.log(`Server listening at ${address}`);
+});
