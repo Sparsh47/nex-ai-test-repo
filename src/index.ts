@@ -1,75 +1,77 @@
 import Fastify from "fastify";
-import fastifyJwt from "fastify-jwt";
+import { jwtVerify } from "fastify-jwt";
 import { z } from "zod";
-import { Logger } from "@nex-ai/logger";
+import { createLogger } from "@nex-ai/logger";
 
-const logger = new Logger({ name: "user-api" });
+const logger = createLogger({ name: "user-api" });
 
 const fastify = Fastify({
   logger: true,
 });
 
-// Register JWT authentication
-fastify.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET || "test-secret-key",
+// JWT Secret (in production, use environment variable)
+const JWT_SECRET = "supersecretkey";
+
+// Zod validation schema for PATCH request
+const UserUpdateSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional(),
 });
 
 // Mock user data
 const mockUser = {
-  id: 1,
-  display_name: "Test User",
-  bio: "Original bio",
+  id: "123",
+  display_name: "JohnDoe",
+  bio: "Software Engineer",
 };
 
-// Zod validation schema for PATCH request
-const updateUserSchema = z.object({
-  display_name: z.string().optional(),
-  bio: z.string().optional(),
-}).refine(data => data.display_name || data.bio, {
-  message: "At least one field (display_name or bio) is required",
+// Register JWT plugin
+fastify.register(import("fastify-jwt"), {
+  secret: JWT_SECRET,
 });
 
 // GET /api/user/me
-fastify.get("/api/user/me", {
-  preValidation: [fastify.jwt],
-}, async (request, reply) => {
-  logger.info("User requested their profile data");
-  return mockUser;
+fastify.get("/api/user/me", async (request, reply) => {
+  try {
+    // Verify JWT token
+    await request.jwtVerify();
+    
+    logger.info("User profile requested");
+    return mockUser;
+  } catch (error) {
+    logger.error("Authentication failed", { error });
+    reply.status(401).send({ error: "Unauthorized" });
+  }
 });
 
 // PATCH /api/user/me
-fastify.patch("/api/user/me", {
-  preValidation: [fastify.jwt],
-  schema: {
-    body: updateUserSchema,
-  },
-}, async (request, reply) => {
-  logger.info("User requested to update their profile");
-  const updates = request.body as z.infer<typeof updateUserSchema>;
-  
-  // Update mock user data
-  Object.assign(mockUser, updates);
-  
-  return {
-    success: true,
-    user: mockUser,
-  };
-});
-
-// Error handling for JWT authentication
-fastify.setErrorHandler((error, request, reply) => {
-  if (error.name === "ValidationError") {
-    logger.warn("Validation error: %s", error.message);
-    return reply.status(400).send({ error: error.message });
+fastify.patch("/api/user/me", async (request, reply) => {
+  try {
+    // Verify JWT token
+    await request.jwtVerify();
+    
+    // Validate request body
+    const validatedData = UserUpdateSchema.parse(request.body);
+    
+    // Update mock user data
+    if (validatedData.display_name) {
+      mockUser.display_name = validatedData.display_name;
+    }
+    if (validatedData.bio) {
+      mockUser.bio = validatedData.bio;
+    }
+    
+    logger.info("User profile updated", { updates: validatedData });
+    return mockUser;
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn("Invalid request body", { error: error.issues });
+      reply.status(400).send({ error: "Invalid request body" });
+    } else {
+      logger.error("Update failed", { error });
+      reply.status(500).send({ error: "Internal server error" });
+    }
   }
-  
-  if (error.name === "JsonWebTokenError") {
-    logger.warn("JWT error: %s", error.message);
-    return reply.status(401).send({ error: "Unauthorized" });
-  }
-
-  logger.error("Unexpected error: %s", error.message);
-  return reply.status(500).send({ error: "Internal server error" });
 });
 
 fastify.get("/health", async (request, reply) => {
@@ -79,7 +81,7 @@ fastify.get("/health", async (request, reply) => {
 const start = async () => {
   try {
     await fastify.listen({ port: 3000 });
-    logger.info("Dummy API listening on port 3000");
+    logger.info("Server listening on port 3000");
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
