@@ -1,45 +1,30 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { UserUpdateSchema } from '../schemas/user';
-import logger from '@nex-ai/logger';
+import { FastifyInstance, FastifyRequest } from 'fastify';
+import { UpdateUserSchema } from '../schemas/user';
+import { logger } from '@nex-ai/logger';
 
-export default async function userRoutes(fastify: FastifyInstance) {
-  // GET /api/user/me
-  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
-    logger.info('User info requested', { userId: (request.user as any)?.id });
-
-    // Mock user data - in production this would come from a database
-    const user = {
-      id: 1,
+export async function userRoutes(fastify: FastifyInstance) {
+  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request: FastifyRequest) => {
+    logger.info('GET /api/user/me - User requested their profile');
+    return {
+      id: '123',
       email: 'user@example.com',
       name: 'John Doe'
     };
-
-    return user;
   });
 
-  // PATCH /api/user/me
-  fastify.patch('/api/user/me', { 
-    preValidation: [fastify.authenticate],
+  fastify.patch('/api/user/me', {
     schema: {
-      body: UserUpdateSchema
-    }
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    logger.info('User update requested', { 
-      userId: (request.user as any)?.id,
-      updates: request.body
-    });
-
-    // In production, this would update the user in the database
-    const updates = UserUpdateSchema.parse(request.body);
-    
-    // Mock user data - in production this would come from a database
-    const user = {
-      id: 1,
+      body: UpdateUserSchema.shape
+    },
+    preValidation: [fastify.authenticate]
+  }, async (request: FastifyRequest<{ Body: z.infer<typeof UpdateUserSchema> }>) => {
+    const updates = request.body;
+    logger.info('PATCH /api/user/me - User updated their profile', { updates });
+    return {
+      id: '123',
       email: 'user@example.com',
       name: 'John Doe',
       ...updates
     };
-
-    return user;
   });
 }
