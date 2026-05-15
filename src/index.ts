@@ -24,7 +24,7 @@ const authenticate = async (request, reply) => {
   try {
     await request.jwtVerify();
   } catch (err) {
-    reply.send(err);
+    reply.status(401).send({ error: 'Unauthorized' });
   }
 };
 
@@ -48,7 +48,7 @@ fastify.get("/user", {
 fastify.patch("/user", {
   preValidation: [authenticate],
   schema: {
-    body: UserPatchSchema.shape,
+    body: UserPatchSchema,
     response: {
       200: {
         type: "object",
