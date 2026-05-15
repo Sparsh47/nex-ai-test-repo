@@ -1,7 +1,7 @@
 import fastify from 'fastify';
 import fastifyJwt from 'fastify-jwt';
-import { z } from 'zod';
 import { Logger } from '@nex-ai/logger';
+import { getUserHandler, updateUserHandler, validateUpdateUser } from '../handlers/user';
 
 const server = fastify({ logger: Logger });
 
@@ -10,34 +10,14 @@ server.register(fastifyJwt, {
   secret: 'mock-secret-key',
 });
 
-// Zod validation schema for PATCH /api/user/me
-const updateUserSchema = z.object({
-  display_name: z.string().optional(),
-  bio: z.string().optional(),
-});
-
 // GET /api/user/me
-server.get('/api/user/me', { preValidation: (req, res) => server.jwt.authenticate(req, res) }, (request, reply) => {
-  server.log.info(`GET /api/user/me - Authenticated user: ${request.user}`);
-  return {
-    email: 'user@example.com',
-    username: 'mock_user',
-  };
-});
+server.get('/api/user/me', { preValidation: (req, res) => server.jwt.authenticate(req, res) }, getUserHandler(server));
 
 // PATCH /api/user/me
 server.patch('/api/user/me', {
   preValidation: (req, res) => server.jwt.authenticate(req, res),
-  schema: {
-    body: updateUserSchema,
-  },
-}, (request, reply) => {
-  server.log.info(`PATCH /api/user/me - Updating user: ${JSON.stringify(request.body)}`);
-  return {
-    success: true,
-    updated_fields: request.body,
-  };
-});
+  schema: validateUpdateUser(server),
+}, updateUserHandler(server));
 
 // 401 handler for unauthenticated requests
 server.setErrorHandler((error, request, reply) => {
