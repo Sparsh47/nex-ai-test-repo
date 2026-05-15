@@ -1,28 +1,8 @@
-import { updateUserSchema } from '../schemas/user';
-import { Logger } from '@nex-ai/logger';
+import { z } from 'zod';
 
-export const getUserHandler = (server) => {
-  return (request, reply) => {
-    server.log.info(`GET /api/user/me - Authenticated user: ${request.user}`);
-    return {
-      email: 'user@example.com',
-      username: 'mock_user',
-    };
-  };
-};
+export const updateUserSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional(),
+});
 
-export const updateUserHandler = (server) => {
-  return (request, reply) => {
-    server.log.info(`PATCH /api/user/me - Updating user: ${JSON.stringify(request.body)}`);
-    return {
-      success: true,
-      updated_fields: request.body,
-    };
-  };
-};
-
-export const validateUpdateUser = (server) => {
-  return {
-    body: updateUserSchema,
-  };
-};
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
