@@ -1,33 +1,45 @@
-import { FastifyInstance } from 'fastify';
-import { updateUserSchema } from './schemas/user';
-import { logger } from '@nex-ai/logger';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { UserUpdateSchema } from '../schemas/user';
+import logger from '@nex-ai/logger';
 
-const mockUser = {
-  id: '123',
-  email: 'user@example.com',
-  name: 'John Doe',
-};
+export default async function userRoutes(fastify: FastifyInstance) {
+  // GET /api/user/me
+  fastify.get('/api/user/me', { preValidation: [fastify.authenticate] }, async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('User info requested', { userId: (request.user as any)?.id });
 
-export async function userRoutes(fastify: FastifyInstance) {
-  fastify.get('/api/user/me', {
-    preValidation: [fastify.authenticate],
-    handler: async (request, reply) => {
-      logger.info(`User ${request.user.id} accessed /api/user/me`);
-      return { user: mockUser };
-    }
+    // Mock user data - in production this would come from a database
+    const user = {
+      id: 1,
+      email: 'user@example.com',
+      name: 'John Doe'
+    };
+
+    return user;
   });
 
-  fastify.patch('/api/user/me', {
+  // PATCH /api/user/me
+  fastify.patch('/api/user/me', { 
     preValidation: [fastify.authenticate],
     schema: {
-      body: updateUserSchema
-    },
-    handler: async (request, reply) => {
-      const { name, email } = updateUserSchema.parse(request.body);
-      logger.info(`User ${request.user.id} updated profile`, { name, email });
-      mockUser.name = name || mockUser.name;
-      mockUser.email = email || mockUser.email;
-      return { user: mockUser };
+      body: UserUpdateSchema
     }
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('User update requested', { 
+      userId: (request.user as any)?.id,
+      updates: request.body
+    });
+
+    // In production, this would update the user in the database
+    const updates = UserUpdateSchema.parse(request.body);
+    
+    // Mock user data - in production this would come from a database
+    const user = {
+      id: 1,
+      email: 'user@example.com',
+      name: 'John Doe',
+      ...updates
+    };
+
+    return user;
   });
 }
