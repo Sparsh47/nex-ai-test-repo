@@ -1,46 +1,44 @@
-import express from 'express';
-import { UserPatchSchema } from '../schemas/user';
-import logger from '../index';
+import { Request, Response } from 'express';
+import { UserUpdateSchema } from '../schemas/user';
+import { logger } from '@nex-ai/logger';
 
-const router = express.Router();
+export const getUser = async (req: Request, res: Response) => {
+  try {
+    // Authentication check
+    if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-// Mock user data
-let currentUser = {
-  id: '123',
-  display_name: 'Test User',
-  bio: 'Default bio',
-  email: 'user@example.com'
+    // Mock user data
+    res.json({
+      id: '123',
+      display_name: 'Test User',
+      bio: 'This is a test bio',
+      created_at: new Date().toISOString()
+    });
+  } catch (error) {
+    logger.error('Error fetching user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
-// GET /api/user/me
-router.get('/me', (req, res) => {
-  logger.info('GET /api/user/me requested');
-  
-  if (!req.user) {
-    logger.warn('Unauthenticated access attempt to /api/user/me');
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
-  res.json(currentUser);
-});
-
-// PATCH /api/user/me
-router.patch('/me', (req, res) => {
-  logger.info('PATCH /api/user/me requested');
-  
-  if (!req.user) {
-    logger.warn('Unauthenticated access attempt to /api/user/me');
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
+export const updateUser = async (req: Request, res: Response) => {
   try {
-    const validatedData = UserPatchSchema.parse(req.body);
-    Object.assign(currentUser, validatedData);
-    res.json(currentUser);
-  } catch (error) {
-    logger.error('Validation failed for PATCH /api/user/me', error);
-    res.status(400).json({ error: 'Invalid request data' });
-  }
-});
+    // Authentication check
+    if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-export default router;
+    // Validate request body
+    const validatedData = UserUpdateSchema.parse(req.body);
+
+    // Mock update logic
+    res.json({
+      success: true,
+      updated_data: validatedData
+    });
+  } catch (error) {
+    logger.error('Error updating user:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
