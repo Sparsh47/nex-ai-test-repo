@@ -1,6 +1,18 @@
 import { Request, Response } from 'express';
 import { UserUpdateSchema } from '../schemas/user';
-import { logger } from '@nex-ai/logger';
+import { createLogger, format, transports } from 'winston';
+
+// Winston logger setup
+const logger = createLogger({
+  format: format.combine(
+    format.timestamp(),
+    format.printf(({ timestamp, level, message }) => `${timestamp} [${level.toUpperCase()}] ${message}`)
+  ),
+  transports: [
+    new transports.Console(),
+    new transports.File({ filename: 'error.log', level: 'error' })
+  ]
+});
 
 export const getUser = async (req: Request, res: Response) => {
   try {
