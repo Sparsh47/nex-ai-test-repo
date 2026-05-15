@@ -1,91 +1,70 @@
-import Fastify from "fastify";
-import { jwtVerify } from "fastify-jwt";
-import { z } from "zod";
-import { createLogger } from "@nex-ai/logger";
+import Fastify from 'fastify';
+import fastifyJwt from 'fastify-jwt';
+import { z } from 'zod';
+import { logger } from '@nex-ai/logger';
 
-const logger = createLogger({ name: "user-api" });
+const app = Fastify();
 
-const fastify = Fastify({
-  logger: true,
-});
-
-// JWT Secret (in production, use environment variable)
-const JWT_SECRET = "supersecretkey";
-
-// Zod validation schema for PATCH request
-const UserUpdateSchema = z.object({
-  display_name: z.string().optional(),
-  bio: z.string().optional(),
+// Register JWT plugin
+app.register(fastifyJwt, {
+  secret: 'your-secret-key',
 });
 
 // Mock user data
 const mockUser = {
-  id: "123",
-  display_name: "JohnDoe",
-  bio: "Software Engineer",
+  id: 1,
+  display_name: 'John Doe',
+  bio: 'Software Engineer',
 };
 
-// Register JWT plugin
-fastify.register(import("fastify-jwt"), {
-  secret: JWT_SECRET,
+// Zod validation schema for PATCH request
+const updateUserSchema = z.object({
+  display_name: z.string().optional(),
+  bio: z.string().optional(),
 });
 
 // GET /api/user/me
-fastify.get("/api/user/me", async (request, reply) => {
-  try {
-    // Verify JWT token
-    await request.jwtVerify();
-    
-    logger.info("User profile requested");
-    return mockUser;
-  } catch (error) {
-    logger.error("Authentication failed", { error });
-    reply.status(401).send({ error: "Unauthorized" });
+app.get('/api/user/me', { preValidation: (request, reply, done) => {
+  if (!request.headers.authorization) {
+    return reply.status(401).send({ error: 'Unauthorized' });
   }
+  done();
+}}, async (request, reply) => {
+  logger.info('GET /api/user/me accessed');
+  return mockUser;
 });
 
 // PATCH /api/user/me
-fastify.patch("/api/user/me", async (request, reply) => {
-  try {
-    // Verify JWT token
-    await request.jwtVerify();
-    
-    // Validate request body
-    const validatedData = UserUpdateSchema.parse(request.body);
-    
-    // Update mock user data
-    if (validatedData.display_name) {
-      mockUser.display_name = validatedData.display_name;
+app.patch('/api/user/me', {
+  preValidation: (request, reply, done) => {
+    if (!request.headers.authorization) {
+      return reply.status(401).send({ error: 'Unauthorized' });
     }
-    if (validatedData.bio) {
-      mockUser.bio = validatedData.bio;
-    }
-    
-    logger.info("User profile updated", { updates: validatedData });
-    return mockUser;
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      logger.warn("Invalid request body", { error: error.issues });
-      reply.status(400).send({ error: "Invalid request body" });
-    } else {
-      logger.error("Update failed", { error });
-      reply.status(500).send({ error: "Internal server error" });
+    done();
+  },
+  schema: {
+    body: {
+      type: 'object',
+      properties: {
+        display_name: { type: 'string' },
+        bio: { type: 'string' },
+      },
+      required: []
     }
   }
+}, async (request, reply) => {
+  logger.info('PATCH /api/user/me accessed');
+  const { display_name, bio } = updateUserSchema.parse(request.body);
+
+  if (display_name) mockUser.display_name = display_name;
+  if (bio) mockUser.bio = bio;
+
+  return mockUser;
 });
 
-fastify.get("/health", async (request, reply) => {
-  return { status: "ok", uptime: process.uptime() };
+// Health check
+app.get('/health', async () => {
+  return { status: 'OK' };
 });
 
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    logger.info("Server listening on port 3000");
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+export default app;
