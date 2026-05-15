@@ -1,26 +1,14 @@
 import Fastify from 'fastify';
 import userRoutes from './routes/user';
 
-const fastify = Fastify({
-  logger: true
+const fastify = Fastify({ logger: true });
+
+// Register JWT plugin
+await fastify.register(require('fastify-jwt'), {
+  secret: 'your-secret-key' // Replace with environment variable in production
 });
 
-// Register health route
-fastify.get('/health', async () => {
-  return { status: 'ok' };
-});
+// Register routes with /api prefix
+await fastify.register(userRoutes, { prefix: '/api' });
 
-// Register user routes
-fastify.register(userRoutes, { prefix: '/api' });
-
-const start = async () => {
-  try {
-    await fastify.listen({ port: 3000 });
-    console.log('Server listening on port 3000');
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+export default fastify;
