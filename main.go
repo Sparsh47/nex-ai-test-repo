@@ -1,87 +1,77 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
-	"math/rand"
+	"fmt"
 	"net/http"
-	"strings"
-	"time"
-
-	store "github.com/Sparsh47/nex-ai-test-repo/store" // Added store import
+	"sync"
+	"encoding/json"
 )
 
-// Product struct for JSON serialization
- type Product struct {
+var (
+	products map[string]Product
+	productMutex sync.Mutex
+)
+
+type Product struct {
 	ID    string  `json:"id"`
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
 }
 
-var productStore = store.NewMutexStore()
-
 func main() {
-	mux := http.NewServeMux()
+	products = make(map[string]Product)
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
+		w.Write([]byte("{\"status\":\"healthy\"}"))
 	})
 
-	// Product routes with concurrency control
-	mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+	
+case "POST":
+			var p Product
+			err := json.NewDecoder(r.Body).Decode(&p)
+			if err != nil {
+				http.Error(w, "Invalid request", http.StatusBadRequest)
+				return
+			}
 
-		var p Product
-		if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
+			if p.Name == "" || p.Price <= 0 {
+				http.Error(w, "Invalid product data", http.StatusBadRequest)
+				return
+			}
+
+			p.ID = generateID()
+			productMutex.Lock()
+			products[p.ID] = p
+			productMutex.Unlock()
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(p)
+
+		case "GET":
+			productMutex.Lock()
+			defer productMutex.Unlock()
+
+			var productList []Product
+			for _, p := range products {
+				productList = append(productList, p)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(productList)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
-		if p.Name == "" || p.Price <= 0 {
-			http.Error(w, "Missing required fields", http.StatusBadRequest)
-			return
-		}
-
-		rand.Seed(time.Now().UnixNano())
-		p.ID = strings.ToUpper("PROD-" + randomString(8))
-
-		productStore.Lock()
-		defer productStore.Unlock()
-
-		productStore.AddProduct(p)
-
-		json.NewEncoder(w).Encode(map[string]string{"id": p.ID})
 	})
 
-	mux.HandleFunc("GET /products/{id}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		id := strings.TrimPrefix(r.URL.Path, "/products/")
-
-		productStore.RLock()
-		defer productStore.RUnlock()
-
-		product, exists := productStore.GetProduct(id)
-		if !exists {
-			http.Error(w, "Product not found", http.StatusNotFound)
-			return
-		}
-
-		json.NewEncoder(w).Encode(product)
-	})
-
-	log.Println("Go Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatal(err)
-	}
+	http.ListenAndServe(":8080", nil)
 }
 
-// Generate random string for ID
-func randomString(n int) string {
-	const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
+func generateID() string {
+	// Simple ID generation for example
+	return fmt.Sprintf("product-%d", len(products)+1)
 }
