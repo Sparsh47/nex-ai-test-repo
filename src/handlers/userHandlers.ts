@@ -1,18 +1,33 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { patchUserSchema } from '../schemas/userSchema';
+import { Request, Response } from 'express';
+import { User } from './schemas/userSchema';
 
-const mockUser = {
-  id: '123',
+// Mock user data
+const mockUser: User = {
+  id: '1',
   name: 'John Doe',
   email: 'john@example.com',
 };
 
-export const getUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  return mockUser;
-};
+export const userHandlers = {
+  getUser: (req: Request, res: Response) => {
+    console.log('GET /api/user/me - Auth check:', req.headers.authorization);
+    if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
-export const updateUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  const validatedData = patchUserSchema.parse(request.body);
-  Object.assign(mockUser, validatedData);
-  return mockUser;
+    res.json(mockUser);
+  },
+
+  updateUser: (req: Request, res: Response) => {
+    console.log('PATCH /api/user/me - Auth check:', req.headers.authorization);
+    if (!req.headers.authorization) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // In a real app, validate and update user data
+    const updatedFields = req.body;
+    Object.assign(mockUser, updatedFields);
+
+    res.json(mockUser);
+  },
 };
