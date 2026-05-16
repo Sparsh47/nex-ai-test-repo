@@ -8,88 +8,108 @@ import (
 	"sync"
 )
 
-// Product represents our data model
+var (
+	productsStore = &store.MutexStore{Data: make(map[string]Product)}
+	nextID        = 1
+	idMutex      sync.Mutex
+)
+
 type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 	Price float64 `json:"price"`
 }
 
-// In-memory store with concurrency control
-var (
-	productsStore = struct {
-		mutex sync.Mutex
-		data  map[string]Product
-	}{
-		data: make(map[string]Product),
-	}
-
-	nextID = 1
-)
-
-// generateID creates a simple numeric ID
 func generateID() string {
+	idMutex.Lock()
+	defer idMutex.Unlock()
+	id := strconv.Itoa(nextID)
 	nextID++
-	return strconv.Itoa(nextID)
+	return id
 }
 
-// Product handlers
 func createProductHandler(w http.ResponseWriter, r *http.Request) {
-	var product Product
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if r.Method != http.MethodPost {
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return
+	}
+
+	var p Product
+	if err := json.NewDecoder(r.Body).Decode(&p);
+	err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	if product.Name == "" || product.Price <= 0 {
-		http.Error(w, "Missing name or invalid price", http.StatusBadRequest)
-		return
+	if p.Name == "" || p.Price <= 0 {
+	http.Error(w, "Invalid product data", http.StatusBadRequest)
+	return
 	}
 
-	productsStore.mutex.Lock()
-	product.ID = generateID()
-	productsStore.data[product.ID] = product
-	productsStore.mutex.Unlock()
+	p.ID = generateID()
+
+	productsStore.Lock()
+	defer productsStore.Unlock()
+
+	productsStore.Data[p.ID] = p
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
+	json.NewEncoder(w).Encode(p)
 }
 
 func getProductHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		http.Error(w, "Missing product ID", http.StatusBadRequest)
-		return
+	if r.Method != http.MethodGet {
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return
 	}
 
-	productsStore.mutex.Lock()
-	product, exists := productsStore.data[id]
-	productsStore.mutex.Unlock()
+	vars := mux.Vars(r)
+	id := vars["id"]
 
+	productsStore.RLock()
+	defer productsStore.RUnlock()
+
+	product, exists := productsStore.Data[id]
 	if !exists {
-		http.Error(w, "Product not found", http.StatusNotFound)
-		return
+	http.Error(w, "Product not found", http.StatusNotFound)
+	return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(product)
+}
+
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+	http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
 
 func main() {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
-	})
+	mux.HandleFunc("/health", healthCheckHandler)
+	mux.HandleFunc("/products", createProductHandler)
+	mux.HandleFunc("/products/", getProductHandler)
 
-	// Product routes
-	mux.HandleFunc("POST /products", createProductHandler)
-	mux.HandleFunc("GET /products", getProductHandler)
-
-	log.Println("Go Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	log.Println("Server starting on :8080...")
+	err := http.ListenAndServe(":8080", mux)
+	if err != nil {
 		log.Fatal(err)
 	}
 }
+
+// MutexStore implements thread-safe map operations
+type MutexStore struct {
+	mu    sync.RWMutex
+	Data  map[string]Product
+}
+
+func (s *MutexStore) Lock()   { s.mu.Lock() }
+func (s *MutexStore) Unlock() { s.mu.Unlock() }
+func (s *MutexStore) RLock()  { s.mu.RLock() }
+func (s *MutexStore) RUnlock() { s.mu.RUnlock() }
