@@ -6,60 +6,80 @@ import (
 	"math/rand"
 	"net/http"
 	"sync"
-	"store"
+	"time"
 )
 
-// Use store package for thread-safe product storage
+// Product represents a product entity
+ type Product struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+}
+
+var (
+	productsMutex sync.RWMutex
+	products      = make(map[string]Product)
+)
+
+func generateID() string {
+	rand.Seed(time.Now().UnixNano())
+	letters := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, 8)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
 func main() {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
-	})
-
-	mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
-		var product store.Product
-		if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 			return
 		}
 
-		store.Mu.Lock()
-		defer store.Mu.Unlock()
+		var product Product
+		err := json.NewDecoder(r.Body).Decode(&product)
+		if err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
 
 		if product.Name == "" || product.Price <= 0 {
 			http.Error(w, "Missing name or invalid price", http.StatusBadRequest)
 			return
 		}
 
+		productsMutex.Lock()
 		product.ID = generateID()
-		store.Products[product.ID] = product
+		products[product.ID] = product
+		productsMutex.Unlock()
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(product)
 	})
 
-	mux.HandleFunc("GET /products/{id}", func(w http.ResponseWriter, r *http.Request) {
-		store.Mu.RLock()
-		defer store.Mu.RUnlock()
-
-		id := r.PathValue("id")
-		product, exists := store.Products[id]
-		if !exists {
-			http.Error(w, "Product not found", http.StatusNotFound)
+	http.HandleFunc("/products/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
 			return
 		}
 
+		productsMutex.RLock()
+		defer productsMutex.RUnlock()
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(product)
+		json.NewEncoder(w).Encode(products)
 	})
 
-	log.Println("Server starting on :8080...")
-	http.ListenAndServe(":8080", mux)
-}
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 
-func generateID() string {
-	return string(rand.Intn(100000000))
+	log.Println("Server started on :8080")
+	http.ListenAndServe(":8080", nil)
 }
