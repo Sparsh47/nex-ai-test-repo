@@ -3,14 +3,12 @@ package main
 import (
 	"encoding/json"
 	"log"
-	"math/rand"
+	"math"
 	"net/http"
 	"sync"
-	"strings"
-	"time"
 )
 
-// Product struct defines our product data model
+// Product represents a product entity
 type Product struct {
 	ID    string  `json:"id"`
 	Name  string  `json:"name"`
@@ -18,107 +16,88 @@ type Product struct {
 }
 
 var (
-	products = make(map[string]Product)
-	productMutex = &sync.Mutex{}
+	products      = make(map[string]Product)
+	productCounter = 1
+	productMutex   = &sync.Mutex{} // Thread-safe access
 )
 
+// generateID creates a unique product ID
+func generateID() string {
+	id := "PROD-" + string(rune(65+productCounter%26)) + string(rune(65+productCounter/26%26))
+	productCounter++
+	return id
+}
+
+// validateProduct checks required fields
+func validateProduct(p Product) error {
+	if p.Name == "" {
+		return &ValidationError{Field: "name", Message: "required"}
+	}
+	if p.Price <= 0 {
+		return &ValidationError{Field: "price", Message: "must be positive"}
+	}
+	return nil
+}
+
+// ValidationError represents validation errors
+type ValidationError struct {
+	Field   string `json:"field"`
+	Message string `json:"message"`
+}
+
 func main() {
-	// Initialize random seed for ID generation
-	rand.Seed(time.Now().UnixNano())
-
-	mux := http.NewServeMux()
-
-	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "ok",
-			"uptime": "100%",
-		})
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
 	})
 
-	// Product endpoints
-	mux.HandleFunc("POST /products", createProductHandler)
-	mux.HandleFunc("GET /products", getProductsHandler)
+	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-	log.Println("Go Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", mux); err != nil {
-		log.Fatal(err)
-	}
+		switch r.Method {
+		case "POST":
+			var p Product
+			err := json.NewDecoder(r.Body).Decode(&p)
+			if err != nil {
+				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				return
+			}
+
+			productMutex.Lock()
+			defer productMutex.Unlock()
+
+			err = validateProduct(p)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"error": err,
+				})
+				return
+			}
+
+			p.ID = generateID()
+			products[p.ID] = p
+
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(p)
+
+		case "GET":
+			productMutex.RLock()
+			defer productMutex.RUnlock()
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(products)
+
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	http.ListenAndServe(":8080", nil)
 }
 
-// createProductHandler handles POST /products requests
-func createProductHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Validate content type
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
-		return
-	}
-
-	var product Product
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if product.Name == "" {
-		http.Error(w, "Product name is required", http.StatusBadRequest)
-		return
-	}
-	if product.Price <= 0 {
-		http.Error(w, "Price must be positive", http.StatusBadRequest)
-		return
-	}
-
-	// Generate unique ID
-	product.ID = generateID()
-
-	// Thread-safe write
-	productMutex.Lock()
-	products[product.ID] = product
-	productMutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
-}
-
-// getProductsHandler handles GET /products requests
-func getProductsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Thread-safe read
-	productMutex.Lock()
-	productList := make([]Product, 0, len(products))
-	for _, p := range products {
-		productList = append(productList, p)
-	}
-	productMutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(productList)
-}
-
-// generateID creates a simple random ID
-func generateID() string {
-	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	id := make([]byte, 8)
-	for i := range id {
-		id[i] = chars[rand.Intn(len(chars))]
-	}
-	return string(id)
+// Stringer implementation for error formatting
+func (e *ValidationError) Error() string {
+	return e.Field + ": " + e.Message
 }
