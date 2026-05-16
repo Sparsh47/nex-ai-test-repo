@@ -1,30 +1,39 @@
 import fastify from 'fastify';
-import { authenticate } from 'fastify-jwt';
-import { logger } from '@nex-ai/logger';
-import { userRouter } from './handlers/userHandlers';
+import fastifyJwt from 'fastify-jwt';
+import { patchUserSchema } from './schemas/userSchema';
+import { logger } from './utils/logger';
 
-const server = fastify();
+const server = fastify({ logger });
 
-// Register JWT plugin
-server.register(import('fastify-jwt'), {
-  secret: 'your-secret-key-here'
+server.register(fastifyJwt, {
+  secret: 'your-secret-key',
 });
 
-// Register user routes
-server.register(userRouter, { prefix: '/api/user' });
-
-// Global error handler
-server.setErrorHandler((error, request, reply) => {
-  logger.error('Unhandled error:', error);
-  reply.status(500).send({ error: 'Internal server error' });
+server.get('/api/user/me', { preValidation: (request, reply, done) => {
+  if (!request.headers.authorization) {
+    return reply.status(401).send({ error: 'Unauthorized' });
+  }
+  done();
+}}, async (request, reply) => {
+  return {
+    id: '123',
+    name: 'John Doe',
+    email: 'john@example.com',
+  };
 });
 
-export default server;
+server.patch('/api/user/me', { preValidation: (request, reply, done) => {
+  if (!request.headers.authorization) {
+    return reply.status(401).send({ error: 'Unauthorized' });
+  }
+  try {
+    const validatedData = patchUserSchema.parse(request.body);
+    // Update mock user logic here
+    reply.send({ ...request.body });
+  } catch (error) {
+    reply.status(400).send({ error: 'Invalid request body' });
+  }
+  done();
+}}, async (request, reply) => {});
 
-// Start server for development
-if (!process.env.TEST_ENV) {
-  server.listen({ port: 3000 }, (err, address) => {
-    if (err) throw err;
-    console.log(`Server listening at ${address}`);
-  });
-}
+export { server };
