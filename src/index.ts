@@ -1,39 +1,19 @@
-import fastify from 'fastify';
-import fastifyJwt from 'fastify-jwt';
-import { patchUserSchema } from './schemas/userSchema';
-import { logger } from './utils/logger';
+import express from 'express';
+import { userHandlers } from './handlers/userHandlers';
 
-const server = fastify({ logger });
+const app = express();
+const PORT = 3000;
 
-server.register(fastifyJwt, {
-  secret: 'your-secret-key',
+// Logger middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
 });
 
-server.get('/api/user/me', { preValidation: (request, reply, done) => {
-  if (!request.headers.authorization) {
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
-  done();
-}}, async (request, reply) => {
-  return {
-    id: '123',
-    name: 'John Doe',
-    email: 'john@example.com',
-  };
+// Routes
+app.get('/api/user/me', userHandlers.getUser);
+app.patch('/api/user/me', userHandlers.updateUser);
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-server.patch('/api/user/me', { preValidation: (request, reply, done) => {
-  if (!request.headers.authorization) {
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
-  try {
-    const validatedData = patchUserSchema.parse(request.body);
-    // Update mock user logic here
-    reply.send({ ...request.body });
-  } catch (error) {
-    reply.status(400).send({ error: 'Invalid request body' });
-  }
-  done();
-}}, async (request, reply) => {});
-
-export { server };
