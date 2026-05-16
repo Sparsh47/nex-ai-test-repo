@@ -1,75 +1,51 @@
-import Fastify from 'fastify';
+import fastify from 'fastify';
 import fastifyJwt from 'fastify-jwt';
-import { userHandlers } from './handlers/userHandlers';
-import { userPatchSchema } from './schemas/userSchema';
-import { logger } from './utils/logger';
+import { getMeHandler } from './handlers/getMeHandler';
+import { patchMeHandler } from './handlers/patchMeHandler';
+import { userPatchSchema } from './schemas/userPatchSchema';
+import logger from '@nex-ai/logger';
 
-const app = Fastify({ logger });
+const app = fastify();
 
-// Register JWT plugin
 app.register(fastifyJwt, {
-  secret: 'supersecretkey',
-  cookie: {
-    cookieName: 'token',
-    signed: false
-  }
+  secret: 'your-secret-key',
 });
 
-// Mock user data
-const mockUser = {
-  id: 1,
-  name: 'John Doe',
-  email: 'john@example.com',
-  age: 30
-};
-
-// GET /api/user/me
 app.get('/api/user/me', {
   preValidation: (request, reply, done) => {
-    // Use fastify-jwt's built-in authenticate decorator
-    if (!request.headers.authorization) {
-      return reply.status(401).send({ error: 'Unauthorized' });
+    try {
+      app.jwt.verify(request, reply, (err) => {
+        if (err) {
+          reply.status(401).send({ error: 'Unauthorized' });
+          return;
+        }
+        logger.info('GET /api/user/me - Authenticated user');
+        done();
+      });
+    } catch (error) {
+      reply.status(401).send({ error: 'Unauthorized' });
     }
-    
-    // In production, token would be validated here
-    // For demo, we'll just assign mock user
-    request.user = mockUser;
-    done();
-  }
-}, userHandlers.getUser);
+  },
+}, getMeHandler);
 
-// PATCH /api/user/me
 app.patch('/api/user/me', {
   schema: {
     body: userPatchSchema,
-    response: {
-      200: {
-        type: 'object',
-        properties: {
-          user: { type: 'object' }
-        }
-      }
-    }
   },
   preValidation: (request, reply, done) => {
-    if (!request.headers.authorization) {
-      return reply.status(401).send({ error: 'Unauthorized' });
+    try {
+      app.jwt.verify(request, reply, (err) => {
+        if (err) {
+          reply.status(401).send({ error: 'Unauthorized' });
+          return;
+        }
+        logger.info('PATCH /api/user/me - Authenticated user');
+        done();
+      });
+    } catch (error) {
+      reply.status(401).send({ error: 'Unauthorized' });
     }
-    
-    // Assign mock user for demo
-    request.user = mockUser;
-    done();
-  }
-}, userHandlers.updateUser);
+  },
+}, patchMeHandler);
 
-const start = async () => {
-  try {
-    await app.listen({ port: 3000 });
-    logger.info('Server listening on port 3000');
-  } catch (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-};
-
-start();
+export { app };
