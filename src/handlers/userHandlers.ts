@@ -1,33 +1,30 @@
 import { Request, Response } from 'express';
-import { User } from './schemas/userSchema';
+import { userSchema } from '../schemas/userSchema';
 
-// Mock user data
-const mockUser: User = {
-  id: '1',
+const mockUser = {
+  id: 1,
   name: 'John Doe',
   email: 'john@example.com',
 };
 
-export const userHandlers = {
-  getUser: (req: Request, res: Response) => {
-    console.log('GET /api/user/me - Auth check:', req.headers.authorization);
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+export const getUser = (req: Request, res: Response) => {
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
-    res.json(mockUser);
-  },
+  res.json(mockUser);
+};
 
-  updateUser: (req: Request, res: Response) => {
-    console.log('PATCH /api/user/me - Auth check:', req.headers.authorization);
-    if (!req.headers.authorization) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+export const updateUser = (req: Request, res: Response) => {
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 
-    // In a real app, validate and update user data
-    const updatedFields = req.body;
+  try {
+    const updatedFields = userSchema.parse(req.body);
     Object.assign(mockUser, updatedFields);
-
     res.json(mockUser);
-  },
+  } catch (error) {
+    res.status(400).json({ error: 'Invalid request body' });
+  }
 };
