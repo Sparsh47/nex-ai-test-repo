@@ -1,25 +1,17 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { userPatchSchema } from '../schemas/userPatchSchema';
+import logger from '@nex-ai/logger';
 
-export async function patchMeHandler(request: FastifyRequest, reply: FastifyReply) {
-  // Basic JWT verification (mock implementation)
-  if (!request.headers.authorization) {
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
-
-  try {
-    const updates = userPatchSchema.parse(request.body);
-    console.log('PATCH /api/user/me request received', { updates });
-
-    return {
-      id: '123',
-      name: 'John Doe',
-      email: 'john@example.com',
-      role: 'user',
-      ...updates,
+export const patchMeHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const updatedData = request.body;
+  logger.info('User data updated:', updatedData);
+  
+  // Mock response - in production this would update the database
+  return {
+    status: 'success',
+    message: 'User updated successfully',
+    data: {
+      ...updatedData,
       updatedAt: new Date().toISOString()
-    };
-  } catch (error) {
-    return reply.status(400).send({ error: 'Invalid request body' });
-  }
-}
+    }
+  };
+};
