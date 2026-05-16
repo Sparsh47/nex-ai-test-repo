@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
-export const patchUserSchema = z.object({
+export const userSchema = z.object({
   name: z.string().optional(),
-  email: z.string().email().optional()
+  email: z.string().email().optional(),
 });
+
+export type User = z.infer<typeof userSchema>;
