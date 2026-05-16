@@ -1,25 +1,37 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { userPatchSchema } from '../schemas/userSchema';
-import { logger } from '../utils/logger';
+import logger from '../utils/logger';
 
-export const userHandlers = {
-  getUser: async (request: FastifyRequest, reply: FastifyReply) => {
-    logger.info('GET /api/user/me - User requested their data');
-    return { user: request.user };
-  },
+// Mock user data
+const mockUser = {
+  id: 1,
+  name: 'John Doe',
+  email: 'john@example.com',
+  role: 'user'
+};
 
-  updateUser: async (request: FastifyRequest, reply: FastifyReply) => {
-    logger.info('PATCH /api/user/me - User requested data update');
-    
-    const validatedData = userPatchSchema.parse(request.body);
-    
-    // Update mock user data (in real app this would update DB)
-    Object.entries(validatedData).forEach(([key, value]) => {
-      if (value !== undefined) {
-        (request.user as any)[key] = value;
-      }
+// GET /api/user/me handler
+export const getUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  logger.info('Fetching user data');
+  return mockUser;
+};
+
+// PATCH /api/user/me handler
+export const updateUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+    // Validate and parse request body
+    const updateData = userPatchSchema.parse(request.body);
+
+    // Apply updates to mock user
+    Object.assign(mockUser, {
+      ...mockUser,
+      ...updateData
     });
 
-    return { user: request.user };
+    logger.info('User data updated', { updates: updateData });
+    return mockUser;
+  } catch (error) {
+    logger.error('Validation failed', error);
+    reply.status(400).send({ error: 'Invalid request data' });
   }
 };
