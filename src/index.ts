@@ -1,40 +1,18 @@
 import fastify from 'fastify';
-import fastifyJwt from 'fastify-jwt';
-import { logger } from '@nex-ai/logger';
-import userHandler from './handlers/userHandlers';
+import { getMeHandler } from './handlers/getMeHandler';
+import { patchMeHandler } from './handlers/patchMeHandler';
+import { verifyJWT } from './middleware/jwt';
 
-const app = fastify();
+const server = fastify();
 
-app.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET || 'your-secret-key',
-});
-
-app.get('/api/user/me', { preValidation: (request, reply, done) => {
-  if (!request.user) {
-    logger.warn('Unauthenticated access attempt to /api/user/me');
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
+// Basic logging middleware
+server.addHook('onRequest', (request, reply, done) => {
+  console.log(`[${new Date().toISOString()}] ${request.method} ${request.url}`);
   done();
-}}, async (request, reply) => {
-  logger.info('GET /api/user/me accessed by authenticated user');
-  return { user: mockUser };
 });
 
-app.patch('/api/user/me', { preValidation: (request, reply, done) => {
-  if (!request.user) {
-    logger.warn('Unauthenticated PATCH attempt to /api/user/me');
-    return reply.status(401).send({ error: 'Unauthorized' });
-  }
-  done();
-}}, userHandler.updateUser);
+// Register routes with authentication middleware
+server.get('/api/user/me', { preHandler: verifyJWT }, getMeHandler);
+server.patch('/api/user/me', { preHandler: verifyJWT }, patchMeHandler);
 
-const mockUser = {
-  id: 1,
-  name: 'John Doe',
-  email: 'john@example.com',
-};
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-});
+export { server };
