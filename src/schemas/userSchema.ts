@@ -3,7 +3,5 @@ import { z } from 'zod';
 export const userPatchSchema = z.object({
   name: z.string().optional(),
   email: z.string().email().optional(),
-  age: z.number().positive().optional()
+  role: z.enum(['user', 'admin']).optional()
 });
-
-export type UserPatchBody = z.infer<typeof userPatchSchema>;
