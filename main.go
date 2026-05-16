@@ -3,81 +3,72 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
-	"strconv"
 )
 
-// Product represents a product entity
+var (
+	products = make(map[string]Product)
+	productMutex = &sync.Mutex{}
+)
+
 type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 	Price float64 `json:"price"`
 }
 
-var (
-	products  = make(map[string]Product)
-	productID = 1
-	mutex     sync.Mutex
-)
-
 func main() {
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
 	})
 
-	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.Method {
-		case "POST":
-			var p Product
-			err := json.NewDecoder(r.Body).Decode(&p)
-			if err != nil {
-				http.Error(w, "Invalid request payload", http.StatusBadRequest)
-				return
-			}
-
-			if p.Name == "" || p.Price <= 0 {
-				http.Error(w, "Name and positive price required", http.StatusBadRequest)
-				return
-			}
-
-			mutex.Lock()
-			defer mutex.Unlock()
-
-			p.ID = generateID()
-			products[p.ID] = p
-
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(p)
-
-		case "GET":
-			mutex.Lock()
-			defer mutex.Unlock()
-
-			productList := make([]Product, 0, len(products))
-			for _, p := range products {
-				productList = append(productList, p)
-			}
-
-			json.NewEncoder(w).Encode(productList)
-
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
+		var product Product
+		if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
 		}
+
+		productMutex.Lock()
+		defer productMutex.Unlock()
+
+		if product.Name == "" || product.Price <= 0 {
+			http.Error(w, "Missing name or invalid price", http.StatusBadRequest)
+			return
+		}
+
+		product.ID = generateID()
+		products[product.ID] = product
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(product)
 	})
 
-	http.ListenAndServe(":8080", nil)
+	mux.HandleFunc("GET /products/{id}", func(w http.ResponseWriter, r *http.Request) {
+		productMutex.Lock()
+		defer productMutex.Unlock()
+
+		id := r.PathValue("id")
+		product, exists := products[id]
+		if !exists {
+			http.Error(w, "Product not found", http.StatusNotFound)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(product)
+	})
+
+	log.Println("Server starting on :8080...")
+	http.ListenAndServe(":8080", mux)
 }
 
 func generateID() string {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	id := productID
-	productID++
-	return strconv.Itoa(id)
+	return string(rand.Intn(10000))
 }
