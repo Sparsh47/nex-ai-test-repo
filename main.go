@@ -2,94 +2,82 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 	"sync"
-	"time"
 )
 
 var (
 	products = make(map[string]Product)
-	productMutex = &sync.Mutex{} // Thread-safe access
-	idCounter = 0
+	productMutex = &sync.Mutex{}
 )
 
-// Product model
 type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
 	Price float64 `json:"price"`
 }
 
-// POST /products - Create product
-func createProductHandler(w http.ResponseWriter, r *http.Request) {
-	productMutex.Lock()
-	defer productMutex.Unlock()
-
-	var product Product
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	// Validation
-	if product.Name == "" || product.Price <= 0 {
-		http.Error(w, "Name and price are required", http.StatusBadRequest)
-		return
-	}
-
-	// Generate ID
-	idCounter++
-	product.ID = fmt.Sprintf("P%04d", idCounter)
-
-	products[product.ID] = product
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
-}
-
-// GET /products - List products
-func getProductsHandler(w http.ResponseWriter, r *http.Request) {
-	productMutex.Lock()
-	defer productMutex.Unlock()
-
-	// Convert map to slice for JSON response
-	productList := make([]Product, 0, len(products))
-	for _, product := range products {
-		productList = append(productList, product)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(productList)
-}
-
-// Health check
-func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
-}
-
 func main() {
-	http.HandleFunc("/health", healthCheckHandler)
-	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			createProductHandler(w, r)
-		case http.MethodGet:
-			getProductsHandler(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
 	})
 
-	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      nil,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
+	mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
+		var product Product
+		if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
+			http.Error(w, "Invalid request payload", http.StatusBadRequest)
+			return
+		}
 
-	srv.ListenAndServe()
+		if product.Name == "" {
+			http.Error(w, "Product name is required", http.StatusBadRequest)
+			return
+		}
+
+		productMutex.Lock()
+		product.ID = generateID()
+		products[product.ID] = product
+		productMutex.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(product)
+	})
+
+	mux.HandleFunc("GET /products", func(w http.ResponseWriter, r *http.Request) {
+		productMutex.Lock()
+		productList := make([]Product, 0, len(products))
+		for _, product := range products {
+			productList = append(productList, product)
+		}
+		productMutex.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(productList)
+	})
+
+	log.Println("Go Server starting on :8080...")
+	if err := http.ListenAndServe(":8080", mux); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func generateID() string {
+	// Simple ID generation for example purposes
+	// In production use UUID or similar
+	return "prod-" + randomString(8)
+}
+
+func randomString(n int) string {
+	// Basic random string implementation
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var result string
+	for i := 0; i < n; i++ {
+		result += string(letters[rand.Intn(len(letters))])
+	}
+	return result
 }
