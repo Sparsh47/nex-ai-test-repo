@@ -1,12 +1,18 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
-import { logger } from '@nex-ai/logger';
 
 export async function getMeHandler(request: FastifyRequest, reply: FastifyReply) {
-  logger.info('GET /api/user/me called');
+  // Basic JWT verification (mock implementation)
+  if (!request.headers.authorization) {
+    return reply.status(401).send({ error: 'Unauthorized' });
+  }
+
+  console.log('GET /api/user/me request received');
+
   return {
     id: '123',
     name: 'John Doe',
     email: 'john@example.com',
-    role: 'user'
+    role: 'user',
+    createdAt: new Date().toISOString()
   };
 }
