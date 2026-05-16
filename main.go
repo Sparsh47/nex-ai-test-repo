@@ -6,19 +6,10 @@ import (
 	"math/rand"
 	"net/http"
 	"sync"
+	"store"
 )
 
-var (
-	products = make(map[string]Product)
-	productMutex = &sync.Mutex{}
-)
-
-type Product struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Price float64 `json:"price"`
-}
-
+// Use store package for thread-safe product storage
 func main() {
 	mux := http.NewServeMux()
 
@@ -28,14 +19,14 @@ func main() {
 	})
 
 	mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
-		var product Product
+		var product store.Product
 		if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		productMutex.Lock()
-		defer productMutex.Unlock()
+		store.Mu.Lock()
+		defer store.Mu.Unlock()
 
 		if product.Name == "" || product.Price <= 0 {
 			http.Error(w, "Missing name or invalid price", http.StatusBadRequest)
@@ -43,7 +34,7 @@ func main() {
 		}
 
 		product.ID = generateID()
-		products[product.ID] = product
+		store.Products[product.ID] = product
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -51,11 +42,11 @@ func main() {
 	})
 
 	mux.HandleFunc("GET /products/{id}", func(w http.ResponseWriter, r *http.Request) {
-		productMutex.Lock()
-		defer productMutex.Unlock()
+		store.Mu.RLock()
+		defer store.Mu.RUnlock()
 
 		id := r.PathValue("id")
-		product, exists := products[id]
+		product, exists := store.Products[id]
 		if !exists {
 			http.Error(w, "Product not found", http.StatusNotFound)
 			return
@@ -70,5 +61,5 @@ func main() {
 }
 
 func generateID() string {
-	return string(rand.Intn(10000))
+	return string(rand.Intn(100000000))
 }
