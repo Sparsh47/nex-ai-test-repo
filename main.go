@@ -13,13 +13,18 @@ func main() {
     // Using Go 1.22+ standard library routing
     mux := http.NewServeMux()
 
-    mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+    // Health check endpoint
+    mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Content-Type", "application/json")
         json.NewEncoder(w).Encode(map[string]string{"status": "ok", "uptime": "100%"})
     })
 
     // POST /products handler
-    mux.HandleFunc("POST /products", func(w http.ResponseWriter, r *http.Request) {
+    mux.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodPost {
+            http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+            return
+        }
         w.Header().Set("Content-Type", "application/json")
         var input struct {
             Name  string  `json:"name"`
@@ -48,7 +53,11 @@ func main() {
     })
 
     // GET /products handler
-    mux.HandleFunc("GET /products", func(w http.ResponseWriter, r *http.Request) {
+    mux.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodGet {
+            http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+            return
+        }
         w.Header().Set("Content-Type", "application/json")
         store.Mu.RLock()
         products := make([]store.Product, 0, len(store.Products))
@@ -56,6 +65,7 @@ func main() {
             products = append(products, p)
         }
         store.Mu.RUnlock()
+        w.WriteHeader(http.StatusOK)
         if err := json.NewEncoder(w).Encode(products); err != nil {
             http.Error(w, "failed to encode response", http.StatusInternalServerError)
         }
