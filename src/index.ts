@@ -1,8 +1,7 @@
 import fastify from 'fastify';
 import { authenticate } from 'fastify-jwt';
 import { logger } from '@nex-ai/logger';
-import { getMeHandler } from './handlers/getMeHandler';
-import { patchMeHandler } from './handlers/patchMeHandler';
+import { userRouter } from './handlers/userHandlers';
 
 const server = fastify();
 
@@ -11,9 +10,8 @@ server.register(import('fastify-jwt'), {
   secret: 'your-secret-key-here'
 });
 
-// Register routes
-server.get('/api/user/me', { preHandler: [authenticate] }, getMeHandler);
-server.patch('/api/user/me', { preHandler: [authenticate] }, patchMeHandler);
+// Register user routes
+server.register(userRouter, { prefix: '/api/user' });
 
 // Global error handler
 server.setErrorHandler((error, request, reply) => {
