@@ -4,96 +4,51 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
-	"time"
+	"store"
 )
 
-var (
-	products = make(map[string]Product)
-	productMutex = &sync.Mutex{} // Thread-safe access
-)
-
-// Product model
-// Product model
-// Product model
-type Product struct {
-	ID    string  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-}
-
-// Health check endpoint
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
-}
-
-// Create product endpoint
-func createProductHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var product Product
-	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	// Validate required fields
-	if product.Name == "" || product.Price <= 0 {
-		http.Error(w, "Name and price are required", http.StatusBadRequest)
-		return
-	}
-
-	// Generate ID with timestamp
-	product.ID = fmt.Sprintf("prod-%d", time.Now().UnixNano())
-
-	// Thread-safe write
-	productMutex.Lock()
-	products[product.ID] = product
-	productMutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(product)
-}
-
-// Get all products endpoint
-func getProductsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Thread-safe read
-	productMutex.Lock()
-	defer productMutex.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(products)
-}
+var productStore = store.NewProductStore()
 
 func main() {
-	http.HandleFunc("/health", healthHandler)
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "healthy"})
+	})
+
 	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
-		case "POST":
-			createProductHandler(w, r)
 		case "GET":
-			getProductsHandler(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			productStore.RLock()
+			defer productStore.RUnlock()
+			json.NewEncoder(w).Encode(productStore.GetAll())
+
+		case "POST":
+			var p Product
+			err := json.NewDecoder(r.Body).Decode(&p)
+			if err != nil {
+				http.Error(w, "Invalid request payload", http.StatusBadRequest)
+				return
+			}
+
+			if p.Name == "" || p.Price <= 0 {
+				http.Error(w, "Missing required fields", http.StatusBadRequest)
+				return
+			}
+
+			productStore.Lock()
+			defer productStore.Unlock()
+			p.ID = productStore.GenerateID()
+			productStore.Add(p)
+			json.NewEncoder(w).Encode(p)
 		}
 	})
 
 	http.ListenAndServe(":8080", nil)
+}
+
+type Product struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
 }
