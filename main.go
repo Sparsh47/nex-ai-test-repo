@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"strconv"
 )
 
 // Product represents a product entity
@@ -78,5 +79,5 @@ func generateID() string {
 
 	id := productID
 	productID++
-	return string(rune(id))
+	return strconv.Itoa(id)
 }
