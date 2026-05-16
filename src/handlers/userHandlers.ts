@@ -1,37 +1,34 @@
-import { FastifyRequest, FastifyReply } from 'fastify';
-import { userPatchSchema } from '../schemas/userSchema';
-import logger from '../utils/logger';
+import express from 'express';
+import { patchUserSchema } from '../schemas/userSchema';
+import { logger } from '../utils/logger';
 
-// Mock user data
+export const userRouter = express.Router();
+
 const mockUser = {
   id: 1,
   name: 'John Doe',
-  email: 'john@example.com',
-  role: 'user'
+  email: 'john@example.com'
 };
 
-// GET /api/user/me handler
-export const getUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  logger.info('Fetching user data');
-  return mockUser;
-};
-
-// PATCH /api/user/me handler
-export const updateUserHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
-    // Validate and parse request body
-    const updateData = userPatchSchema.parse(request.body);
-
-    // Apply updates to mock user
-    Object.assign(mockUser, {
-      ...mockUser,
-      ...updateData
-    });
-
-    logger.info('User data updated', { updates: updateData });
-    return mockUser;
-  } catch (error) {
-    logger.error('Validation failed', error);
-    reply.status(400).send({ error: 'Invalid request data' });
+userRouter.get('/api/user/me', (req, res) => {
+  logger.info('GET /api/user/me');
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Unauthorized' });
   }
-};
+  res.json(mockUser);
+});
+
+userRouter.patch('/api/user/me', (req, res) => {
+  logger.info('PATCH /api/user/me');
+  if (!req.headers.authorization) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const validatedData = patchUserSchema.parse(req.body);
+    Object.assign(mockUser, validatedData);
+    res.json(mockUser);
+  } catch (error) {
+    res.status(400).json({ error: 'Invalid request body' });
+  }
+});
