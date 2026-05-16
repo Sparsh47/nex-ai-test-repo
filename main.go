@@ -2,48 +2,22 @@ package main
 
 import (
 	"encoding/json"
-	"log"
-	"math"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // Product represents a product entity
-type Product struct {
+ type Product struct {
 	ID    string  `json:"id"`
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
 }
 
 var (
-	products      = make(map[string]Product)
-	productCounter = 1
-	productMutex   = &sync.Mutex{} // Thread-safe access
+	products = make(map[string]Product)
+	mutex    = &sync.Mutex{}
 )
-
-// generateID creates a unique product ID
-func generateID() string {
-	id := "PROD-" + string(rune(65+productCounter%26)) + string(rune(65+productCounter/26%26))
-	productCounter++
-	return id
-}
-
-// validateProduct checks required fields
-func validateProduct(p Product) error {
-	if p.Name == "" {
-		return &ValidationError{Field: "name", Message: "required"}
-	}
-	if p.Price <= 0 {
-		return &ValidationError{Field: "price", Message: "must be positive"}
-	}
-	return nil
-}
-
-// ValidationError represents validation errors
-type ValidationError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
-}
 
 func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -53,40 +27,36 @@ func main() {
 	})
 
 	http.HandleFunc("/products", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
 		switch r.Method {
-		case "POST":
+	
+case http.MethodPost:
 			var p Product
 			err := json.NewDecoder(r.Body).Decode(&p)
 			if err != nil {
-				http.Error(w, "Invalid JSON", http.StatusBadRequest)
+				http.Error(w, "Invalid request body", http.StatusBadRequest)
 				return
 			}
 
-			productMutex.Lock()
-			defer productMutex.Unlock()
-
-			err = validateProduct(p)
-			if err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(map[string]interface{}{
-					"error": err,
-				})
+			if p.Name == "" || p.Price <= 0 {
+				http.Error(w, "Name and positive price required", http.StatusBadRequest)
 				return
 			}
+
+			mutex.Lock()
+			defer mutex.Unlock()
 
 			p.ID = generateID()
 			products[p.ID] = p
 
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(p)
 
-		case "GET":
-			productMutex.RLock()
-			defer productMutex.RUnlock()
+		case http.MethodGet:
+			mutex.Lock()
+			defer mutex.Unlock()
 
-			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(products)
 
 		default:
@@ -97,7 +67,15 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
-// Stringer implementation for error formatting
-func (e *ValidationError) Error() string {
-	return e.Field + ": " + e.Message
+func generateID() string {
+	return time.Now().Format("20060102150405") + "-" + randomString(8)
+}
+
+func randomString(n int) string {
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[time.Now().UnixNano()%int64(len(letters))]
+	}
+	return string(b)
 }
