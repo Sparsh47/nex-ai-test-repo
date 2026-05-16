@@ -1,17 +1,25 @@
-import { z } from 'zod';
-import { logger } from '@nex-ai/logger';
+import { FastifyRequest, FastifyReply } from 'fastify';
+import { userPatchSchema } from '../schemas/userSchema';
+import { logger } from '../utils/logger';
 
-export const schema = z.object({
-  name: z.string().optional(),
-  email: z.string().email().optional(),
-});
+export const userHandlers = {
+  getUser: async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('GET /api/user/me - User requested their data');
+    return { user: request.user };
+  },
 
-export const updateUser = (mockUser) => (request, reply) => {
-  logger.info('Received PATCH request to update user');
-  const { name, email } = schema.parse(request.body);
+  updateUser: async (request: FastifyRequest, reply: FastifyReply) => {
+    logger.info('PATCH /api/user/me - User requested data update');
+    
+    const validatedData = userPatchSchema.parse(request.body);
+    
+    // Update mock user data (in real app this would update DB)
+    Object.entries(validatedData).forEach(([key, value]) => {
+      if (value !== undefined) {
+        (request.user as any)[key] = value;
+      }
+    });
 
-  if (name) mockUser.name = name;
-  if (email) mockUser.email = email;
-
-  return { user: mockUser };
+    return { user: request.user };
+  }
 };
