@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"store"
+	"sync"
 )
 
-var productStore = store.NewProductStore()
+var productStore = newProductStore()
 
 func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -19,8 +19,8 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case "GET":
-			productStore.RLock()
-			defer productStore.RUnlock()
+			productStore.mu.RLock()
+			defer productStore.mu.RUnlock()
 			json.NewEncoder(w).Encode(productStore.GetAll())
 
 		case "POST":
@@ -36,8 +36,8 @@ func main() {
 				return
 			}
 
-			productStore.Lock()
-			defer productStore.Unlock()
+			productStore.mu.Lock()
+			defer productStore.mu.Unlock()
 			p.ID = productStore.GenerateID()
 			productStore.Add(p)
 			json.NewEncoder(w).Encode(p)
@@ -47,8 +47,40 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+// ProductStore implements thread-safe product storage
+
 type Product struct {
 	ID    string  `json:"id"`
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
+}
+
+type ProductStore struct {
+	products map[string]Product
+	mu       sync.RWMutex
+	nextID   int
+}
+
+func newProductStore() *ProductStore {
+	return &ProductStore{
+		products: make(map[string]Product),
+		nextID:   1,
+	}
+}
+
+func (s *ProductStore) GenerateID() string {
+	s.nextID++
+	return fmt.Sprintf("product-%d", s.nextID)
+}
+
+func (s *ProductStore) Add(p Product) {
+	s.products[p.ID] = p
+}
+
+func (s *ProductStore) GetAll() []Product {
+	products := make([]Product, 0, len(s.products))
+	for _, p := range s.products {
+		products = append(products, p)
+	}
+	return products
 }
