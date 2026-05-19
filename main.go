@@ -1,21 +1,16 @@
 package main
 
 import (
-    "crypto/rand"
-    "encoding/hex"
     "encoding/json"
     "log"
     "net/http"
+    "github.com/google/uuid"
     "github.com/Sparsh47/nex-ai-test-repo/store"
 )
 
-// generateID creates a random 16-byte hex string ID.
+// generateID creates a UUID string ID.
 func generateID() (string, error) {
-    b := make([]byte, 16)
-    if _, err := rand.Read(b); err != nil {
-        return "", err
-    }
-    return hex.EncodeToString(b), nil
+    return uuid.New().String(), nil
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
