@@ -1,30 +1,13 @@
 package main
 
 import (
-    "crypto/rand"
     "encoding/json"
-    "fmt"
     "log"
     "net/http"
+
+    "github.com/google/uuid"
     "github.com/Sparsh47/nex-ai-test-repo/store"
 )
-
-// generateUUID creates a random UUID string using crypto/rand.
-func generateUUID() (string, error) {
-    // UUID version 4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-    // where y is one of 8, 9, a, b.
-    b := make([]byte, 16)
-    _, err := rand.Read(b)
-    if err != nil {
-        return "", err
-    }
-    // Set version (4) and variant (2 bits) per RFC 4122.
-    b[6] = (b[6] & 0x0f) | 0x40 // Version 4
-    b[8] = (b[8] & 0x3f) | 0x80 // Variant is 10
-    uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-        b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-    return uuid, nil
-}
 
 func main() {
     // Using Go 1.22+ standard library routing
@@ -64,14 +47,9 @@ func handleCreateProduct(w http.ResponseWriter, r *http.Request) {
         json.NewEncoder(w).Encode(map[string]string{"error": "invalid product data"})
         return
     }
-    // Generate ID
-    id, err := generateUUID()
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]string{"error": "failed to generate ID"})
-        return
-    }
-    p.ID = id
+    // Generate ID using google/uuid
+    p.ID = uuid.NewString()
+
     // Store safely
     store.Mu.Lock()
     store.Products[p.ID] = p
